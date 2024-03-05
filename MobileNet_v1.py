@@ -1,13 +1,12 @@
+import os
+import numpy as np
 import tensorflow as tf
 from tensorflow.keras.applications import MobileNet
-from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras import layers, models
 from tensorflow.keras.optimizers import Adam
-import numpy as np
 import datetime
-import os
-from sklearn.model_selection import StratifiedKFold
+import pandas as pd
 from tensorflow.keras.callbacks import Callback
 from sklearn.metrics import (
     precision_score,
@@ -18,112 +17,70 @@ from sklearn.metrics import (
     matthews_corrcoef,
     cohen_kappa_score,
 )
+from tensorflow.keras.callbacks import ModelCheckpoint
+from tensorflow.keras.utils import to_categorical
+from sklearn.model_selection import KFold
+
+from PIL import Image
+import numpy as np
 
 
-class DetailedLoggingCallback(Callback):
-    def __init__(self, test_data, file_prefix="MobileNet_v1_optAdam_lr0.001_bs32"):
-        super(DetailedLoggingCallback, self).__init__()
-        self.test_data = test_data
-        current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.detail_file_path = f"{file_prefix}_{current_time}_details.txt"
-        self.Confusion_Matrix_path = f"{file_prefix}_{current_time}_confusion_matrix"
-        self.report_path = f"{file_prefix}_{current_time}_report"
-        # Initialize file and write header with tab as separator
-        with open(self.detail_file_path, "w") as f:
-            f.write(
-                "Epoch\tTrain Loss\tTrain Accuracy\tTest Loss\tTest Accuracy\tTest Precision\tTest Recall\tTest F1-Score\tTest MCC\tTest CMC\n"
-            )
-        with open(f"{self.Confusion_Matrix_path}_test.txt", "w") as f:
-            f.write("Confusion Matrix Test\n")
-        with open(f"{self.report_path}_test.txt", "w") as f:
-            f.write("Classification Report Test\n")
-        self.epoch_logs = []
-        self.epoch_cm_logs = []
-        self.epoch_report = []
+def preprocess_image(image_path, target_size=(224, 224)):
+    """
+    Load and preprocess the image from the given path.
 
-    def on_epoch_end(self, epoch, logs=None):
-        logs = logs or {}
-        test_results = self.model.evaluate(self.test_data, verbose=0)
-        test_loss, test_accuracy = test_results[0], test_results[1]
-        y_pred_test = np.argmax(self.model.predict(self.test_data), axis=1)
-        y_true_test = self.test_data.classes
-        cm_test = confusion_matrix(y_true_test, y_pred_test)
-        report_test = classification_report(
-            y_true_test, y_pred_test, digits=5, output_dict=True
-        )
-        precision_test = precision_score(y_true_test, y_pred_test, average="macro")
-        recall_test = recall_score(y_true_test, y_pred_test, average="macro")
-        f1_test = f1_score(y_true_test, y_pred_test, average="macro")
-        mcc_test = matthews_corrcoef(y_true_test, y_pred_test)
-        cmc_test = cohen_kappa_score(y_true_test, y_pred_test)
-        cm_test = confusion_matrix(y_true_test, y_pred_test)
-        report_test = classification_report(
-            y_true_test, y_pred_test, digits=5, output_dict=True
-        )
-        print("Confusion Matrix (Test):")
-        print(cm_test)
-        print("Classification Report (Test):")
-        print(report_test)
-        print("Test Accuracy:", test_accuracy)
-        print("Test Loss:", test_loss)
-        print("Test Precision:", precision_test)
-        print("Test Recall:", recall_test)
-        print("Test F1-Score:", f1_test)
-        print("Test MCC:", mcc_test)
-        print("Test CMC:", cmc_test)
-        self.epoch_cm_logs.append((epoch + 1, cm_test))
-        self.epoch_report.append((epoch + 1, report_test))
-        # Save information to temporary list with values separated by tab
-        self.epoch_logs.append(
-            (
-                epoch + 1,
-                logs.get("loss", 0),
-                logs.get("accuracy", 0),
-                test_loss,
-                test_accuracy,
-                precision_test,
-                recall_test,
-                f1_test,
-                mcc_test,
-                cmc_test,
-            )
-        )
+    Parameters:
+        image_path (str): The path to the image file.
+        target_size (tuple): The target size to resize the image to.
 
-    def on_train_end(self, logs=None):
-        # Save information from each epoch to detail file, using tab as separator
-        with open(self.detail_file_path, "a") as f:
-            for log in self.epoch_logs:
-                f.write(
-                    f"{log[0]}\t{log[1]:.5f}\t{log[2]:.5f}\t{log[3]:.5f}\t{log[4]:.5f}\t{log[5]:.5f}\t{log[6]:.5f}\t{log[7]:.5f}\t{log[8]:.5f}\t{log[9]:.5f}\n"
-                )
-        with open(f"{self.Confusion_Matrix_path}_test.txt", "a") as f:
-            for log in self.epoch_cm_logs:
-                f.write(f"{log[1]}\n\n")
-        with open(f"{self.report_path}_test.txt", "a") as f:
-            for log in self.epoch_report:
-                f.write(f"{log[1]}\n\n")
+    Returns:
+        numpy.ndarray: The preprocessed image as a numpy array.
+    """
+    # Load the image
+    image = Image.open(image_path)
+    # Resize the image to the target size
+    image = image.resize(target_size)
+    # Convert the image to a numpy array
+    image_array = np.array(image)
+    # Normalize the pixel values to the range [0, 1]
+    image_array = image_array.astype("float32") / 255.0
+    return image_array
 
 
-# Define paths to data directories
-data_dir = "./Guava_Dataset"
-sub_dirs = ["Disease_Free", "Phytopthora", "Red_rust", "Scab", "Styler_Root"]
+# Thư mục chứa dữ liệu
+data_dir = "./Guava Dataset/"
 
-# Create labels based on sub-directory names
-labels = []
-for idx, sub_dir in enumerate(sub_dirs):
-    files = os.listdir(os.path.join(data_dir, sub_dir))
-    labels.extend([idx] * len(files))
+# List các tên lớp (tên thư mục trong data_dir)
+class_names = os.listdir(data_dir)
+num_classes = len(class_names)
 
-# Convert labels to numpy array
-labels = np.array(labels)
+# Load dữ liệu từ thư mục
+inputs = []
+targets = []
 
 IMG_SIZE = (224, 224)
 BATCH_SIZE = 32
 NUM_CLASSES = 5
-EPOCHS = 1
+EPOCHS = 100
+for class_index, class_name in enumerate(class_names):
+    class_dir = os.path.join(data_dir, class_name)
+    for image_name in os.listdir(class_dir):
+        image_path = os.path.join(class_dir, image_name)
+        # Đọc ảnh và tiền xử lý (ví dụ: resize, chuyển đổi sang numpy array)
+        # Đảm bảo rằng inputs và targets tương thích với mô hình của bạn
+        inputs.append(preprocess_image(image_path))
+        targets.append(class_index)
 
+inputs = np.array(inputs)
+targets = np.array(targets)
 
-# Load the MobileNet model pre-trained weights
+# Định nghĩa các tham số của K-fold Cross Validation
+num_folds = 5
+kfold = KFold(n_splits=num_folds, shuffle=True)
+fold_no = 1
+acc_per_fold = []
+loss_per_fold = []
+
 base_model = MobileNet(
     weights="imagenet", include_top=False, input_shape=(*IMG_SIZE, 3)
 )
@@ -132,86 +89,126 @@ base_model = MobileNet(
 # Freeze the layers of the base model
 for layer in base_model.layers:
     layer.trainable = False
+# Định nghĩa cấu trúc mô hình
+model = models.Sequential(
+    [
+        base_model,
+        layers.GlobalAveragePooling2D(),
+        layers.Dense(1024, activation="relu"),
+        layers.Dropout(0.5),
+        layers.Dense(NUM_CLASSES, activation="softmax"),
+    ]
+)
 
+# Chuyển đổi nhãn thành one-hot encoding
+targets_one_hot = to_categorical(targets, num_classes)
 
-# Initialize StratifiedKFold with 5 folds
-skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+# Compile mô hình
+model.compile(
+    optimizer=Adam(learning_rate=0.0001),
+    loss="categorical_crossentropy",
+    metrics=["accuracy", tf.keras.metrics.Precision(), tf.keras.metrics.Recall()],
+)
 
-# Loop through each fold
-for fold_idx, (train_index, test_index) in enumerate(
-    skf.split(np.zeros(len(labels)), labels)
-):
-    print(f"Fold {fold_idx + 1}")
-    train_files = []
-    test_files = []
-    # Get file paths for train and test data based on fold indices
-    for idx in train_index:
-        train_files.append(os.path.join(data_dir, sub_dirs[labels[idx]], files[idx]))
-    for idx in test_index:
-        test_files.append(os.path.join(data_dir, sub_dirs[labels[idx]], files[idx]))
+# Tạo list để lưu thông tin từ các epoch
+epoch_list = []
+train_loss_list = []
+train_accuracy_list = []
+test_loss_list = []
+test_accuracy_list = []
+test_precision_list = []
+test_recall_list = []
+test_f1_score_list = []
+test_mcc_list = []
+test_cmc_list = []
 
-    # Data preprocessing and augmentation for train data
-    train_datagen = ImageDataGenerator(
-        rescale=1.0 / 255,
-        rotation_range=20,
-        width_shift_range=0.2,
-        height_shift_range=0.2,
-        shear_range=0.2,
-        zoom_range=0.2,
-        vertical_flip=True,
-        horizontal_flip=False,
-        fill_mode="nearest",
-    )
-
-    # Data preprocessing for test data
-    test_datagen = ImageDataGenerator(rescale=1.0 / 255)
-
-    # Load train data
-    train_data = train_datagen.flow_from_directory(
-        data_dir,
-        target_size=IMG_SIZE,
-        batch_size=BATCH_SIZE,
-        class_mode="categorical",
-        subset="training",
-        shuffle=True,
-    )
-
-    # Load test data
-    test_data = test_datagen.flow_from_directory(
-        data_dir,
-        target_size=IMG_SIZE,
-        batch_size=BATCH_SIZE,
-        class_mode="categorical",
-        subset="validation",
-        shuffle=False,
-    )
-
-    # Initialize and compile model
-    model = models.Sequential(
-        [
-            base_model,
-            layers.GlobalAveragePooling2D(),
-            layers.Dense(1024, activation="relu"),
-            layers.Dropout(0.5),
-            layers.Dense(NUM_CLASSES, activation="softmax"),
-        ]
-    )
-    model.compile(
-        optimizer=Adam(learning_rate=0.0001),
-        loss="categorical_crossentropy",
-        metrics=["accuracy", tf.keras.metrics.Precision(), tf.keras.metrics.Recall()],
-    )
-
-    # Initialize callback for detailed logging
-    detailed_logging_callback = DetailedLoggingCallback(test_data=test_data)
-
-    # Train the model
+# Định nghĩa callback để lưu model có độ chính xác cao nhất trên tập kiểm tra
+checkpoint = ModelCheckpoint(
+    "best_model.keras",
+    monitor="val_accuracy",
+    verbose=1,
+    save_best_only=True,
+    mode="max",
+)
+# Lặp qua các fold của K-fold Cross Validation
+for train_indices, test_indices in kfold.split(inputs, targets):
+    # Huấn luyện mô hình trên dữ liệu của fold hiện tại
     history = model.fit(
-        train_data,
+        inputs[train_indices],
+        targets_one_hot[train_indices],
+        batch_size=BATCH_SIZE,
         epochs=EPOCHS,
         verbose=1,
-        callbacks=[detailed_logging_callback],
+        callbacks=[checkpoint],
+        validation_data=(inputs[test_indices], targets_one_hot[test_indices]),
     )
 
-    # Save the model
-    model.save(f"./MobileNet_v1_fold{fold_idx + 1}.keras")
+    # Đánh giá mô hình trên dữ liệu kiểm tra của fold hiện tại
+    scores = model.evaluate(
+        inputs[test_indices], targets_one_hot[test_indices], verbose=1
+    )
+    print(
+        f"Score for fold {fold_no}: {model.metrics_names[0]} of {scores[0]}; {model.metrics_names[1]} of {scores[1]*100}%"
+    )
+    # Lưu thông tin từ các epoch vào list
+    epoch_list.append(fold_no)
+    train_loss_list.append(history.history["loss"][-1])
+    train_accuracy_list.append(history.history["accuracy"][-1])
+    test_loss_list.append(scores[0])
+    test_accuracy_list.append(scores[1])
+
+    # Tính toán các metric khác
+    y_pred = model.predict(inputs[test_indices])
+    y_pred = np.argmax(y_pred, axis=1)
+    precision = precision_score(targets[test_indices], y_pred, average="macro")
+    recall = recall_score(targets[test_indices], y_pred, average="macro")
+    f1_score_val = f1_score(targets[test_indices], y_pred, average="macro")
+    # Initialize an empty list to store the MCC values for each class
+    mcc_per_class = []
+
+    # Calculate MCC for each class
+    for class_index, class_name in enumerate(class_names):
+        mcc = matthews_corrcoef(
+            targets[test_indices] == class_index, y_pred == class_index
+        )
+        mcc_per_class.append(mcc)
+    cmc = cohen_kappa_score(targets[test_indices], y_pred)
+
+    # Lưu các metric vào list
+    test_precision_list.append(precision)
+    test_recall_list.append(recall)
+    test_f1_score_list.append(f1_score_val)
+    test_mcc_list.append(mcc)
+    test_cmc_list.append(cmc)
+
+    # Lưu confusion matrix vào file
+    cm = confusion_matrix(targets[test_indices], y_pred)
+    cm_df = pd.DataFrame(cm, index=class_names, columns=class_names)
+    cm_df.to_csv(f"confusion_matrix_fold.csv", sep="\t")
+
+    # Lưu classification report vào file
+    cr = classification_report(targets[test_indices], y_pred)
+    with open(f"classification_report_fold.txt", "w") as f:
+        f.write(cr)
+
+    # Tăng số fold
+    fold_no += 1
+
+
+# Tạo DataFrame từ thông tin đã lưu
+log_data = {
+    "Epoch": epoch_list,
+    "Train Loss": train_loss_list,
+    "Train Accuracy": train_accuracy_list,
+    "Test Loss": test_loss_list,
+    "Test Accuracy": test_accuracy_list,
+    "Test Precision": test_precision_list,
+    "Test Recall": test_recall_list,
+    "Test F1-Score": test_f1_score_list,
+    "Test MCC": test_mcc_list,
+    "Test CMC": test_cmc_list,
+}
+log_df = pd.DataFrame(log_data)
+
+# Lưu DataFrame thành file CSV
+log_df.to_csv("log_file.csv", index=False)
