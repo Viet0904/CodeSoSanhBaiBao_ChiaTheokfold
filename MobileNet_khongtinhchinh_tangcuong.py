@@ -50,7 +50,7 @@ targets = []
 IMG_SIZE = (224, 224)
 BATCH_SIZE = 32
 NUM_CLASSES = 5
-EPOCHS = 100
+EPOCHS = 3
 for class_index, class_name in enumerate(class_names):
     class_dir = os.path.join(data_dir, class_name)
     for image_name in os.listdir(class_dir):
@@ -107,7 +107,7 @@ def build_model():
 targets_one_hot = to_categorical(targets, num_classes)
 
 checkpoint = ModelCheckpoint(
-    "best_model_datinhchinh.keras",
+    "best_model_khongtinhchinh_tangcuong.keras",
     monitor="val_accuracy",
     verbose=1,
     save_best_only=True,
@@ -133,9 +133,6 @@ class MetricsLogger(Callback):
             )
 
 
-metrics_logger = MetricsLogger("metrics_datinhchinh.log")
-
-
 def save_confusion_matrix(y_true, y_pred, class_names, file_path):
     cm = confusion_matrix(y_true, y_pred)
     df_cm = pd.DataFrame(cm, index=class_names, columns=class_names)
@@ -154,18 +151,33 @@ for fold_no, (train_indices, test_indices) in enumerate(
     # Reset model mỗi lần chạy fold mới
     model = build_model()
     # Khởi tạo MetricsLogger mới cho mỗi fold
-    metrics_logger = MetricsLogger(f"metrics_datinhchinh_fold_{fold_no}.log")
-    # Huấn luyện mô hình trên dữ liệu của fold
+    metrics_logger = MetricsLogger(
+        f"metrics_khongtinhchinh_tangcuong_fold_{fold_no}.log"
+    )
+    # Khởi tạo ImageDataGenerator để áp dụng tăng cường dữ liệu cho tập huấn luyện của fold hiện tại
+    train_datagen = ImageDataGenerator(
+        rotation_range=20,  # xoay ảnh trong khoảng 20 độ
+        width_shift_range=0.2,  # di chuyển ngang ảnh trong khoảng 20% chiều rộng
+        height_shift_range=0.2,  # di chuyển dọc ảnh trong khoảng 20% chiều cao
+        shear_range=0.2,  # cắt biến dạng ảnh trong khoảng 20%
+        zoom_range=0.2,  # zoom ảnh trong khoảng 20%
+        horizontal_flip=True,  # lật ảnh theo chiều ngang
+        fill_mode="nearest",  
+    )
+
+    # Fit ImageDataGenerator với dữ liệu huấn luyện của fold hiện tại
+    train_datagen.fit(inputs[train_indices])
+
+    # Huấn luyện mô hình với dữ liệu tăng cường của fold hiện tại
     history = model.fit(
-        inputs[train_indices],
-        targets_one_hot[train_indices],
-        batch_size=BATCH_SIZE,
+        train_datagen.flow(
+            inputs[train_indices], targets_one_hot[train_indices], batch_size=BATCH_SIZE
+        ),
         epochs=EPOCHS,
         verbose=1,
         callbacks=[checkpoint, metrics_logger],
         validation_data=(inputs[test_indices], targets_one_hot[test_indices]),
     )
-
     # Đánh giá mô hình trên dữ liệu kiểm tra của fold hiện tại
     scores = model.evaluate(
         inputs[test_indices], targets_one_hot[test_indices], verbose=1
@@ -182,12 +194,12 @@ for fold_no, (train_indices, test_indices) in enumerate(
         targets[test_indices],
         y_pred,
         class_names,
-        f"confusion_matrix_datinhchinh.csv",
+        f"confusion_matrix_khongtinhchinh_tangcuong.csv",
     )
 
     save_classification_report(
         targets[test_indices],
         y_pred,
         class_names,
-        f"classification_report_datinhchinh.txt",
+        f"classification_report_khongtinhchinh_tangcuong.txt",
     )

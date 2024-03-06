@@ -69,34 +69,42 @@ fold_no = 1
 acc_per_fold = []
 loss_per_fold = []
 
-base_model = MobileNet(
-    weights="imagenet", include_top=False, input_shape=(*IMG_SIZE, 3)
-)
 
+def build_model():
+    base_model = MobileNet(
+        weights="imagenet", include_top=False, input_shape=(*IMG_SIZE, 3)
+    )
 
-for layer in base_model.layers:
-    layer.trainable = False
-# Định nghĩa cấu trúc mô hình
-model = models.Sequential(
-    [
-        base_model,
-        layers.GlobalAveragePooling2D(),
-        layers.Dense(1024, activation="relu"),
-        layers.Dropout(0.5),
-        layers.Dense(NUM_CLASSES, activation="softmax"),
-    ]
-)
+    for layer in base_model.layers:
+        layer.trainable = False
+
+    model = models.Sequential(
+        [
+            base_model,
+            layers.GlobalAveragePooling2D(),
+            layers.Dense(1024, activation="relu"),
+            layers.Dropout(0.5),
+            layers.Dense(NUM_CLASSES, activation="softmax"),
+        ]
+    )
+
+    model.compile(
+        optimizer=Adam(learning_rate=0.001),
+        loss="categorical_crossentropy",
+        metrics=[
+            "accuracy",
+            tf.keras.metrics.Precision(),
+            tf.keras.metrics.Recall(),
+            tf.keras.metrics.Precision(name="val_precision"),
+            tf.keras.metrics.Recall(name="val_recall"),
+        ],
+    )
+
+    return model
+
 
 # Chuyển đổi nhãn thành one-hot encoding
 targets_one_hot = to_categorical(targets, num_classes)
-
-# Compile mô hình
-model.compile(
-    optimizer=Adam(learning_rate=0.001),
-    loss="categorical_crossentropy",
-    metrics=["accuracy", tf.keras.metrics.Precision(), tf.keras.metrics.Recall()],
-)
-
 
 checkpoint = ModelCheckpoint(
     "best_model_khongtinhchinh.keras",
@@ -125,9 +133,6 @@ class MetricsLogger(Callback):
             )
 
 
-metrics_logger = MetricsLogger("metrics_khongtinhchinh.log")
-
-
 def save_confusion_matrix(y_true, y_pred, class_names, file_path):
     cm = confusion_matrix(y_true, y_pred)
     df_cm = pd.DataFrame(cm, index=class_names, columns=class_names)
@@ -143,6 +148,8 @@ def save_classification_report(y_true, y_pred, class_names, file_path):
 for fold_no, (train_indices, test_indices) in enumerate(
     kfold.split(inputs, targets), 1
 ):
+    # Reset model mỗi lần chạy fold mới
+    model = build_model()
     # Khởi tạo MetricsLogger mới cho mỗi fold
     metrics_logger = MetricsLogger(f"metrics_khongtinhchinh_fold_{fold_no}.log")
     # Huấn luyện mô hình trên dữ liệu của fold
