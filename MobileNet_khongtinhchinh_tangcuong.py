@@ -50,7 +50,7 @@ targets = []
 IMG_SIZE = (224, 224)
 BATCH_SIZE = 32
 NUM_CLASSES = 5
-EPOCHS = 3
+EPOCHS = 100
 for class_index, class_name in enumerate(class_names):
     class_dir = os.path.join(data_dir, class_name)
     for image_name in os.listdir(class_dir):
@@ -162,7 +162,7 @@ for fold_no, (train_indices, test_indices) in enumerate(
         shear_range=0.2,  # cắt biến dạng ảnh trong khoảng 20%
         zoom_range=0.2,  # zoom ảnh trong khoảng 20%
         horizontal_flip=True,  # lật ảnh theo chiều ngang
-        fill_mode="nearest",  
+        fill_mode="nearest",
     )
 
     # Fit ImageDataGenerator với dữ liệu huấn luyện của fold hiện tại
