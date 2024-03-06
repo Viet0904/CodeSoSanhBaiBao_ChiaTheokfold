@@ -92,7 +92,7 @@ targets_one_hot = to_categorical(targets, num_classes)
 
 # Compile mô hình
 model.compile(
-    optimizer=Adam(learning_rate=0.0001),
+    optimizer=Adam(learning_rate=0.001),
     loss="categorical_crossentropy",
     metrics=["accuracy", tf.keras.metrics.Precision(), tf.keras.metrics.Recall()],
 )
