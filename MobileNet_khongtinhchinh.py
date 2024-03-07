@@ -5,6 +5,7 @@ from tensorflow.keras.applications import MobileNet
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras import layers, models
 from tensorflow.keras.optimizers import Adam
+from sklearn.model_selection import train_test_split
 import datetime
 import pandas as pd
 from tensorflow.keras.callbacks import Callback
@@ -152,15 +153,20 @@ for fold_no, (train_indices, test_indices) in enumerate(
     model = build_model()
     # Khởi tạo MetricsLogger mới cho mỗi fold
     metrics_logger = MetricsLogger(f"metrics_khongtinhchinh_fold_{fold_no}.log")
+
+    X_train, X_val, y_train, y_val = train_test_split(
+        inputs, targets_one_hot, test_size=0.2, random_state=42
+    )
+
     # Huấn luyện mô hình trên dữ liệu của fold
     history = model.fit(
-        inputs[train_indices],
-        targets_one_hot[train_indices],
+        X_train,
+        y_train,
         batch_size=BATCH_SIZE,
         epochs=EPOCHS,
         verbose=1,
         callbacks=[checkpoint, metrics_logger],
-        validation_data=(inputs[test_indices], targets_one_hot[test_indices]),
+        validation_data=(X_val, y_val),
     )
 
     # Đánh giá mô hình trên dữ liệu kiểm tra của fold hiện tại

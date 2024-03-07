@@ -13,7 +13,7 @@ from tensorflow.keras.utils import to_categorical
 from sklearn.model_selection import KFold
 from PIL import Image
 import numpy as np
-
+from sklearn.model_selection import train_test_split
 from sklearn.metrics import (
     precision_score,
     recall_score,
@@ -154,29 +154,31 @@ for fold_no, (train_indices, test_indices) in enumerate(
     metrics_logger = MetricsLogger(
         f"metrics_khongtinhchinhv4_tangcuong_fold_{fold_no}.log"
     )
-    # Khởi tạo ImageDataGenerator để áp dụng tăng cường dữ liệu cho tập huấn luyện của fold hiện tại
-    train_datagen = ImageDataGenerator(
-        rotation_range=20,  # xoay ảnh trong khoảng 20 độ
-        width_shift_range=0.2,  # di chuyển ngang ảnh trong khoảng 20% chiều rộng
-        height_shift_range=0.2,  # di chuyển dọc ảnh trong khoảng 20% chiều cao
-        shear_range=0.2,  # cắt biến dạng ảnh trong khoảng 20%
-        zoom_range=0.2,  # zoom ảnh trong khoảng 20%
-        horizontal_flip=True,  # lật ảnh theo chiều ngang
-        fill_mode="nearest",
+    X_train, X_val, y_train, y_val = train_test_split(
+        inputs, targets_one_hot, test_size=0.2, random_state=42
     )
 
-    # Fit ImageDataGenerator với dữ liệu huấn luyện của fold hiện tại
-    train_datagen.fit(inputs[train_indices])
+    # Khởi tạo ImageDataGenerator để áp dụng tăng cường dữ liệu cho tập huấn luyện của fold hiện tại
+    train_datagen = ImageDataGenerator(
+        rotation_range=20,
+        width_shift_range=0.2,
+        height_shift_range=0.2,
+        shear_range=0.2,
+        zoom_range=0.2,
+        vertical_flip=True,
+        horizontal_flip=False,
+        fill_mode="nearest",
+    )
+    # Tạo ra dữ liệu augmented từ dữ liệu train
+    train_generator = train_datagen.flow(X_train, y_train, batch_size=BATCH_SIZE)
 
     # Huấn luyện mô hình với dữ liệu tăng cường của fold hiện tại
     history = model.fit(
-        train_datagen.flow(
-            inputs[train_indices], targets_one_hot[train_indices], batch_size=BATCH_SIZE
-        ),
+        train_generator,
         epochs=EPOCHS,
         verbose=1,
         callbacks=[checkpoint, metrics_logger],
-        validation_data=(inputs[test_indices], targets_one_hot[test_indices]),
+        validation_data=(X_val, y_val),
     )
     # Đánh giá mô hình trên dữ liệu kiểm tra của fold hiện tại
     scores = model.evaluate(
