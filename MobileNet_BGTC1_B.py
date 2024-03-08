@@ -88,7 +88,7 @@ def build_model():
     )
 
     model.compile(
-        optimizer=Adam(learning_rate=0.001),
+        optimizer=Adam(learning_rate=0.0001),
         loss="categorical_crossentropy",
         metrics=[
             "accuracy",
