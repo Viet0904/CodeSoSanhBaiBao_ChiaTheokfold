@@ -49,7 +49,7 @@ inputs = []
 targets = []
 
 IMG_SIZE = (224, 224)
-BATCH_SIZE = 16
+BATCH_SIZE = 32
 NUM_CLASSES = 5
 EPOCHS = 100
 for class_index, class_name in enumerate(class_names):
@@ -75,9 +75,6 @@ def build_model():
     base_model = MobileNet(
         weights="imagenet", include_top=False, input_shape=(*IMG_SIZE, 3)
     )
-
-    for layer in base_model.layers:
-        layer.trainable = False
 
     model = models.Sequential(
         [
@@ -117,7 +114,7 @@ def build_model():
 targets_one_hot = to_categorical(targets, num_classes)
 
 checkpoint = ModelCheckpoint(
-    "best_model_datinhchinhv3_v2_tangcuong.keras",
+    "best_model_khongtinhchinhv3_v1_tangcuong.keras",
     monitor="val_accuracy",
     verbose=1,
     save_best_only=True,
@@ -162,7 +159,7 @@ for fold_no, (train_indices, test_indices) in enumerate(
     model = build_model()
     # Khởi tạo MetricsLogger mới cho mỗi fold
     metrics_logger = MetricsLogger(
-        f"metrics_datinhchinhv3_v2_tangcuong_fold_{fold_no}.log"
+        f"metrics_khongtinhchinhv3_v1_tangcuong_fold_{fold_no}.log"
     )
     X_train, X_val, y_train, y_val = train_test_split(
         inputs, targets_one_hot, test_size=0.2, random_state=42
@@ -206,12 +203,12 @@ for fold_no, (train_indices, test_indices) in enumerate(
         targets[test_indices],
         y_pred,
         class_names,
-        f"confusion_matrix_datinhchinhv3_v2_tangcuong.csv",
+        f"confusion_matrix_khongtinhchinhv3_v1_tangcuong.csv",
     )
 
     save_classification_report(
         targets[test_indices],
         y_pred,
         class_names,
-        f"classification_report_datinhchinhv3_v2_tangcuong.txt",
+        f"classification_report_khongtinhchinhv3_v1_tangcuong.txt",
     )
