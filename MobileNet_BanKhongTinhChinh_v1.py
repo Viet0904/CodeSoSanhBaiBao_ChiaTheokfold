@@ -103,7 +103,7 @@ def build_model():
 targets_one_hot = to_categorical(targets, num_classes)
 
 checkpoint = ModelCheckpoint(
-    "best_model_BanGocTinhChinh_v2_tangcuong.keras",
+    "best_model_BanGocKhongTinhChinh_v2_tangcuong.keras",
     monitor="val_accuracy",
     verbose=1,
     save_best_only=True,
@@ -148,7 +148,7 @@ for fold_no, (train_indices, test_indices) in enumerate(
     model = build_model()
     # Khởi tạo MetricsLogger mới cho mỗi fold
     metrics_logger = MetricsLogger(
-        f"metrics_BanGocTinhChinh_v2_tangcuong_fold_{fold_no}.log"
+        f"metrics_BanGocKhongTinhChinh_v2_tangcuong_fold_{fold_no}.log"
     )
     X_train, X_val, y_train, y_val = train_test_split(
         inputs, targets_one_hot, test_size=0.2, random_state=42
@@ -192,12 +192,12 @@ for fold_no, (train_indices, test_indices) in enumerate(
         targets[test_indices],
         y_pred,
         class_names,
-        f"confusion_matrix_BanGocTinhChinh_v2_tangcuong.csv",
+        f"confusion_matrix_BanGocKhongTinhChinh_v2_tangcuong.csv",
     )
 
     save_classification_report(
         targets[test_indices],
         y_pred,
         class_names,
-        f"classification_report_BanGocTinhChinh_v2_tangcuong.txt",
+        f"classification_report_BanGocKhongTinhChinh_v2_tangcuong.txt",
     )
