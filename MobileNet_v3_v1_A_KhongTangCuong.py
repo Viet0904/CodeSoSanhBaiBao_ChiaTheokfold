@@ -10,9 +10,9 @@ import pandas as pd
 from tensorflow.keras.callbacks import Callback
 from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.utils import to_categorical
+from sklearn.model_selection import train_test_split
 from sklearn.model_selection import KFold
 from PIL import Image
-from sklearn.model_selection import train_test_split
 import numpy as np
 
 from sklearn.metrics import (
@@ -49,7 +49,7 @@ inputs = []
 targets = []
 
 IMG_SIZE = (224, 224)
-BATCH_SIZE = 32
+BATCH_SIZE = 16
 NUM_CLASSES = 5
 EPOCHS = 100
 for class_index, class_name in enumerate(class_names):
@@ -82,9 +82,18 @@ def build_model():
     model = models.Sequential(
         [
             base_model,
+            layers.MaxPooling2D(),  # Add max pooling layer
+            layers.Dense(2048, activation="relu"),
+            layers.BatchNormalization(),  # Add batch normalization layer
             layers.GlobalAveragePooling2D(),
-            layers.Dense(1024, activation="relu"),
             layers.Dropout(0.3),
+            layers.Dense(1024, activation="relu"),
+            layers.BatchNormalization(),  # Add batch normalization layer
+            layers.Dropout(0.3),
+            layers.Dense(512, activation="relu"),  # Add additional dense layer
+            layers.BatchNormalization(),  # Add batch normalization layer
+            layers.Dropout(0.3),
+            layers.Dense(128, activation="relu"),  # Add additional dense layer
             layers.Dense(NUM_CLASSES, activation="softmax"),
         ]
     )
@@ -108,7 +117,7 @@ def build_model():
 targets_one_hot = to_categorical(targets, num_classes)
 
 checkpoint = ModelCheckpoint(
-    "best_model_MobileNetC_khongtangcuongv1.keras",
+    "best_model_MobileNet_v3_v1_A_khongtangcuong.keras",
     monitor="val_accuracy",
     verbose=1,
     save_best_only=True,
@@ -117,27 +126,20 @@ checkpoint = ModelCheckpoint(
 
 
 class MetricsLogger(Callback):
-    def __init__(self, log_file, X_val, y_val):
+    def __init__(self, log_file):
         super().__init__()
         self.log_file = log_file
-        self.X_val = X_val
-        self.y_val = y_val
         self.header_written = False
 
     def on_epoch_end(self, epoch, logs=None):
         with open(self.log_file, "a") as f:
             if not self.header_written:
                 f.write(
-                    "Epoch\tTrain loss\tTrain accuracy\tval_loss\tval_accuracy\tval_recall\tval_precision\tvalid_MCC\tvalid_CMC\tvalid_F1-Score\n"
+                    "Epoch\tTrain loss\tTrain accuracy\tval_loss\tval_accuracy\tval_recall\tval_precision\n"
                 )
                 self.header_written = True
-            y_true = np.argmax(self.y_val, axis=1)
-            y_pred = np.argmax(self.model.predict(self.X_val), axis=1)
-            mcc = matthews_corrcoef(y_true, y_pred)
-            cmc = cohen_kappa_score(y_true, y_pred)
-            f1 = f1_score(y_true, y_pred, average="weighted")
             f.write(
-                f"{epoch+1}\t{logs['loss']:.5f}\t{logs['accuracy']:.5f}\t{logs['val_loss']:.5f}\t{logs['val_accuracy']:.5f}\t{logs['val_recall']:.5f}\t{logs['val_precision']:.5f}\t{mcc:.5f}\t{cmc:.5f}\t{f1:.5f}\n"
+                f"{epoch+1}\t{logs['loss']:.5f}\t{logs['accuracy']:.5f}\t{logs['val_loss']:.5f}\t{logs['val_accuracy']:.5f}\t{logs['val_recall']:.5f}\t{logs['val_precision']:.5f}\n"
             )
 
 
@@ -158,27 +160,13 @@ for fold_no, (train_indices, test_indices) in enumerate(
 ):
     # Reset model mỗi lần chạy fold mới
     model = build_model()
-
+    # Khởi tạo MetricsLogger mới cho mỗi fold
+    metrics_logger = MetricsLogger(
+        f"metrics_MobileNet_v3_v1_A_khongtangcuong_fold_{fold_no}.log"
+    )
     X_train, X_val, y_train, y_val = train_test_split(
         inputs, targets_one_hot, test_size=0.2, random_state=42
     )
-    # Khởi tạo MetricsLogger mới cho mỗi fold
-    metrics_logger = MetricsLogger(
-        f"metrics_MobileNetC_khongtangcuongv1_fold_{fold_no}.log", X_val, y_val
-    )
-    # Khởi tạo ImageDataGenerator để áp dụng tăng cường dữ liệu cho tập huấn luyện của fold hiện tại
-    train_datagen = ImageDataGenerator(
-        rotation_range=20,
-        width_shift_range=0.2,
-        height_shift_range=0.2,
-        shear_range=0.2,
-        zoom_range=0.2,
-        vertical_flip=True,
-        horizontal_flip=False,
-        fill_mode="nearest",
-    )
-    # Tạo ra dữ liệu augmented từ dữ liệu train
-    train_generator = train_datagen.flow(X_train, y_train, batch_size=BATCH_SIZE)
 
     # Huấn luyện mô hình với dữ liệu tăng cường của fold hiện tại
     history = model.fit(
@@ -204,12 +192,12 @@ for fold_no, (train_indices, test_indices) in enumerate(
         targets[test_indices],
         y_pred,
         class_names,
-        f"confusion_matrix_MobileNetC_khongtangcuongv1.csv",
+        f"confusion_matrix_MobileNet_v3_v1_A_khongtangcuong.csv",
     )
 
     save_classification_report(
         targets[test_indices],
         y_pred,
         class_names,
-        f"classification_report_MobileNetC_khongtangcuongv1.txt",
+        f"classification_report_MobileNet_v3_v1_A_khongtangcuong.txt",
     )
