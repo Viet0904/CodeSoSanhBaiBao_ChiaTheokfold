@@ -160,6 +160,8 @@ for fold_no, (train_indices, test_indices) in enumerate(
 ):
     # Reset model mỗi lần chạy fold mới
     model = build_model()
+    model.summary()
+
     # Khởi tạo MetricsLogger mới cho mỗi fold
     metrics_logger = MetricsLogger(
         f"metrics_MobileNet_v3_v1_A_tangcuong_fold_{fold_no}.log"

@@ -51,7 +51,7 @@ targets = []
 IMG_SIZE = (224, 224)
 BATCH_SIZE = 32
 NUM_CLASSES = 5
-EPOCHS = 100
+EPOCHS = 1
 for class_index, class_name in enumerate(class_names):
     class_dir = os.path.join(data_dir, class_name)
     for image_name in os.listdir(class_dir):
@@ -156,7 +156,7 @@ for fold_no, (train_indices, test_indices) in enumerate(
 ):
     # Reset model mỗi lần chạy fold mới
     model = build_model()
-
+    model.summary()
     X_train, X_val, y_train, y_val = train_test_split(
         inputs, targets_one_hot, test_size=0.2, random_state=42
     )

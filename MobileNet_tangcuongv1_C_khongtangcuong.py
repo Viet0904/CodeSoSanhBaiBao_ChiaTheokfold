@@ -108,7 +108,7 @@ def build_model():
 targets_one_hot = to_categorical(targets, num_classes)
 
 checkpoint = ModelCheckpoint(
-    "best_model_MobileNetC_tangcuongv1.keras",
+    "best_model_MobileNetC_khongtangcuongv1.keras",
     monitor="val_accuracy",
     verbose=1,
     save_best_only=True,
@@ -164,7 +164,7 @@ for fold_no, (train_indices, test_indices) in enumerate(
     )
     # Khởi tạo MetricsLogger mới cho mỗi fold
     metrics_logger = MetricsLogger(
-        f"metrics_MobileNetC_tangcuongv1_fold_{fold_no}.log", X_val, y_val
+        f"metrics_MobileNetC_khongtangcuongv1_fold_{fold_no}.log", X_val, y_val
     )
     # Khởi tạo ImageDataGenerator để áp dụng tăng cường dữ liệu cho tập huấn luyện của fold hiện tại
     train_datagen = ImageDataGenerator(
@@ -204,12 +204,12 @@ for fold_no, (train_indices, test_indices) in enumerate(
         targets[test_indices],
         y_pred,
         class_names,
-        f"confusion_matrix_MobileNetC_tangcuongv1.csv",
+        f"confusion_matrix_MobileNetC_khongtangcuongv1.csv",
     )
 
     save_classification_report(
         targets[test_indices],
         y_pred,
         class_names,
-        f"classification_report_MobileNetC_tangcuongv1.txt",
+        f"classification_report_MobileNetC_khongtangcuongv1.txt",
     )
