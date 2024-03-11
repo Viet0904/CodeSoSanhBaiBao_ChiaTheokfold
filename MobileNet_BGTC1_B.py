@@ -156,6 +156,7 @@ for fold_no, (train_indices, test_indices) in enumerate(
 ):
     # Reset model mỗi lần chạy fold mới
     model = build_model()
+    model.build((None, *IMG_SIZE, 3))
     model.summary()
     X_train, X_val, y_train, y_val = train_test_split(
         inputs, targets_one_hot, test_size=0.2, random_state=42

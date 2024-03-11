@@ -158,7 +158,8 @@ for fold_no, (train_indices, test_indices) in enumerate(
 ):
     # Reset model mỗi lần chạy fold mới
     model = build_model()
-
+    model.build((None, *IMG_SIZE, 3))
+    model.summary()
     X_train, X_val, y_train, y_val = train_test_split(
         inputs, targets_one_hot, test_size=0.2, random_state=42
     )
@@ -166,23 +167,10 @@ for fold_no, (train_indices, test_indices) in enumerate(
     metrics_logger = MetricsLogger(
         f"metrics_MobileNetC_khongtangcuongv1_fold_{fold_no}.log", X_val, y_val
     )
-    # Khởi tạo ImageDataGenerator để áp dụng tăng cường dữ liệu cho tập huấn luyện của fold hiện tại
-    train_datagen = ImageDataGenerator(
-        rotation_range=20,
-        width_shift_range=0.2,
-        height_shift_range=0.2,
-        shear_range=0.2,
-        zoom_range=0.2,
-        vertical_flip=True,
-        horizontal_flip=False,
-        fill_mode="nearest",
-    )
-    # Tạo ra dữ liệu augmented từ dữ liệu train
-    train_generator = train_datagen.flow(X_train, y_train, batch_size=BATCH_SIZE)
 
-    # Huấn luyện mô hình với dữ liệu tăng cường của fold hiện tại
     history = model.fit(
-        train_generator,
+        X_train,
+        y_train,
         epochs=EPOCHS,
         verbose=1,
         callbacks=[checkpoint, metrics_logger],

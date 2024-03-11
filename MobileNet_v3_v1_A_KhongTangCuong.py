@@ -49,7 +49,7 @@ inputs = []
 targets = []
 
 IMG_SIZE = (224, 224)
-BATCH_SIZE = 16
+BATCH_SIZE = 32
 NUM_CLASSES = 5
 EPOCHS = 100
 for class_index, class_name in enumerate(class_names):
@@ -126,20 +126,27 @@ checkpoint = ModelCheckpoint(
 
 
 class MetricsLogger(Callback):
-    def __init__(self, log_file):
+    def __init__(self, log_file, X_val, y_val):
         super().__init__()
         self.log_file = log_file
+        self.X_val = X_val
+        self.y_val = y_val
         self.header_written = False
 
     def on_epoch_end(self, epoch, logs=None):
         with open(self.log_file, "a") as f:
             if not self.header_written:
                 f.write(
-                    "Epoch\tTrain loss\tTrain accuracy\tval_loss\tval_accuracy\tval_recall\tval_precision\n"
+                    "Epoch\tTrain loss\tTrain accuracy\tval_loss\tval_accuracy\tval_recall\tval_precision\tvalid_MCC\tvalid_CMC\tvalid_F1-Score\n"
                 )
                 self.header_written = True
+            y_true = np.argmax(self.y_val, axis=1)
+            y_pred = np.argmax(self.model.predict(self.X_val), axis=1)
+            mcc = matthews_corrcoef(y_true, y_pred)
+            cmc = cohen_kappa_score(y_true, y_pred)
+            f1 = f1_score(y_true, y_pred, average="weighted")
             f.write(
-                f"{epoch+1}\t{logs['loss']:.5f}\t{logs['accuracy']:.5f}\t{logs['val_loss']:.5f}\t{logs['val_accuracy']:.5f}\t{logs['val_recall']:.5f}\t{logs['val_precision']:.5f}\n"
+                f"{epoch+1}\t{logs['loss']:.5f}\t{logs['accuracy']:.5f}\t{logs['val_loss']:.5f}\t{logs['val_accuracy']:.5f}\t{logs['val_recall']:.5f}\t{logs['val_precision']:.5f}\t{mcc:.5f}\t{cmc:.5f}\t{f1:.5f}\n"
             )
 
 
@@ -160,17 +167,18 @@ for fold_no, (train_indices, test_indices) in enumerate(
 ):
     # Reset model mỗi lần chạy fold mới
     model = build_model()
-    # Khởi tạo MetricsLogger mới cho mỗi fold
-    metrics_logger = MetricsLogger(
-        f"metrics_MobileNet_v3_v1_A_khongtangcuong_fold_{fold_no}.log"
-    )
+    model.build((None, *IMG_SIZE, 3))
+    model.summary()
     X_train, X_val, y_train, y_val = train_test_split(
         inputs, targets_one_hot, test_size=0.2, random_state=42
     )
-
-    # Huấn luyện mô hình với dữ liệu tăng cường của fold hiện tại
+    # Khởi tạo MetricsLogger mới cho mỗi fold
+    metrics_logger = MetricsLogger(
+        f"metrics_MobileNet_v3_v1_A_khongtangcuong_fold_{fold_no}.log", X_val, y_val
+    )
     history = model.fit(
-        train_generator,
+        X_train,
+        y_train,
         epochs=EPOCHS,
         verbose=1,
         callbacks=[checkpoint, metrics_logger],
