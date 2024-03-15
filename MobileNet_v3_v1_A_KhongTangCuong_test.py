@@ -51,7 +51,7 @@ targets = []
 IMG_SIZE = (224, 224)
 BATCH_SIZE = 32
 NUM_CLASSES = 5
-EPOCHS = 100
+EPOCHS = 3
 for class_index, class_name in enumerate(class_names):
     class_dir = os.path.join(data_dir, class_name)
     for image_name in os.listdir(class_dir):
@@ -103,10 +103,12 @@ def build_model():
         loss="categorical_crossentropy",
         metrics=[
             "accuracy",
-            tf.keras.metrics.Precision(),
+            tf.keras.metrics.Precision(name="precision_1"),  # Đổi tên thành precision_1
             tf.keras.metrics.Recall(),
-            tf.keras.metrics.Precision(name="val_precision"),
-            tf.keras.metrics.Recall(name="val_recall"),
+            tf.keras.metrics.Precision(
+                name="test_precision"
+            ),  # Giữ nguyên tên precision
+            tf.keras.metrics.Recall(name="test_recall"),
         ],
     )
 
@@ -117,7 +119,7 @@ def build_model():
 targets_one_hot = to_categorical(targets, num_classes)
 
 checkpoint = ModelCheckpoint(
-    "best_model_MobileNet_v3_v1_A_tangcuong.keras",
+    "best_model_MobileNet_v3_v1_A_khongtangcuong.keras",
     monitor="val_accuracy",
     verbose=1,
     save_best_only=True,
@@ -126,30 +128,30 @@ checkpoint = ModelCheckpoint(
 
 
 class MetricsLogger(Callback):
-    def __init__(self, log_file, X_val, y_val, fold_no, log_file_prefix):
+    def __init__(self, log_file, X_test, y_test, fold_no, log_file_prefix):
         super().__init__()
         self.log_file = log_file
         self.fold_no = fold_no
         self.log_file_prefix = log_file_prefix
         self.epoch_count = 0
-        self.X_val = X_val
-        self.y_val = y_val
+        self.X_test = X_test
+        self.y_test = y_test
         self.header_written = False
 
     def on_epoch_end(self, epoch, logs=None):
         with open(self.log_file, "a") as f:
             if not self.header_written:
                 f.write(
-                    "Epoch\tTrain loss\tTrain accuracy\tval_loss\tval_accuracy\tval_recall\tval_precision\tvalid_MCC\tvalid_CMC\tvalid_F1-Score\n"
+                    "Epoch\tTrain loss\tTrain accuracy\ttest_loss\ttest_accuracy\ttest_recall\ttest_precision\ttest_MCC\ttest_CMC\ttest_F1-Score\n"
                 )
                 self.header_written = True
-            y_true = np.argmax(self.y_val, axis=1)
-            y_pred = np.argmax(self.model.predict(self.X_val), axis=1)
+            y_true = np.argmax(self.y_test, axis=1)
+            y_pred = np.argmax(self.model.predict(self.X_test), axis=1)
             mcc = matthews_corrcoef(y_true, y_pred)
             cmc = cohen_kappa_score(y_true, y_pred)
             f1 = f1_score(y_true, y_pred, average="weighted")
             f.write(
-                f"{epoch+1}\t{logs['loss']:.5f}\t{logs['accuracy']:.5f}\t{logs['val_loss']:.5f}\t{logs['val_accuracy']:.5f}\t{logs['val_recall']:.5f}\t{logs['val_precision']:.5f}\t{mcc:.5f}\t{cmc:.5f}\t{f1:.5f}\n"
+                f"{epoch+1}\t{logs['loss']:.5f}\t{logs['accuracy']:.5f}\t{logs['loss']:.5f}\t{logs['accuracy']:.5f}\t{logs['test_recall']:.5f}\t{logs['test_precision']:.5f}\t{mcc:.5f}\t{cmc:.5f}\t{f1:.5f}\n"
             )
 
         confusion_matrix_file = f"{self.log_file_prefix}_fold{self.fold_no}.txt"
@@ -175,77 +177,30 @@ def save_classification_report(y_true, y_pred, class_names, file_path):
 for fold_no, (train_indices, test_indices) in enumerate(
     kfold.split(inputs, targets), 1
 ):
-    X_train, X_val = inputs[train_indices], inputs[test_indices]
-    y_train, y_val = targets_one_hot[train_indices], targets_one_hot[test_indices]
+    X_train, X_test = inputs[train_indices], inputs[test_indices]
+    y_train, y_test = targets_one_hot[train_indices], targets_one_hot[test_indices]
 
     # Reset model mỗi lần chạy fold mới
     model = build_model()
     model.build((None, *IMG_SIZE, 3))
     model.summary()
-    # Tính toán confusion matrix cho tập train trước khi tăng cường
-    y_train_pred_before_augmentation = np.argmax(model.predict(X_train), axis=1)
-    y_train_true = np.argmax(y_train, axis=1)
-    confusion_matrix_train_before_augmentation = confusion_matrix(
-        y_train_true, y_train_pred_before_augmentation
-    )
-    print("Confusion matrix for train data before augmentation:")
-    print(confusion_matrix_train_before_augmentation)
     # Khởi tạo MetricsLogger mới cho mỗi fold
     metrics_logger = MetricsLogger(
-        f"metrics_MobileNet_v3_v1_A_tangcuong_fold_{fold_no}.log",
-        X_val,
-        y_val,
+        f"metrics_MobileNet_v3_v1_A_khongtangcuong_fold_{fold_no}.log",
+        X_test,
+        y_test,
         fold_no,
-        f"confusion_matrix_MobileNet_v3_v1_A_tangcuong",
+        f"confusion_matrix_MobileNet_v3_v1_A_khongtangcuong",
     )
-    # Khởi tạo ImageDataGenerator để áp dụng tăng cường dữ liệu cho tập huấn luyện của fold hiện tại
-    train_datagen = ImageDataGenerator(
-        rotation_range=20,
-        width_shift_range=0.2,
-        height_shift_range=0.2,
-        shear_range=0.2,
-        zoom_range=0.2,
-        vertical_flip=True,
-        horizontal_flip=False,
-        fill_mode="nearest",
-    )
-    # Tạo ra dữ liệu augmented từ dữ liệu train
-    train_generator = train_datagen.flow(X_train, y_train, batch_size=BATCH_SIZE)
-    # Tính toán confusion matrix cho tập train sau khi tăng cường
-    y_train_pred_after_augmentation = np.argmax(model.predict(train_generator), axis=1)
-    confusion_matrix_train_after_augmentation = confusion_matrix(
-        y_train_true, y_train_pred_after_augmentation
-    )
-    print("Confusion matrix for train data after augmentation:")
-    print(confusion_matrix_train_after_augmentation)
-
-    # Lưu confusion matrix vào file
-    np.savetxt(
-        "confusion_matrix_train_before_augmentation.txt",
-        confusion_matrix_train_before_augmentation,
-        fmt="%d",
-        delimiter="\t",
-    )
-    np.savetxt(
-        "confusion_matrix_train_after_augmentation.txt",
-        confusion_matrix_train_after_augmentation,
-        fmt="%d",
-        delimiter="\t",
-    )
-    # Huấn luyện mô hình với dữ liệu tăng cường của fold hiện tại
     history = model.fit(
-        train_generator,
-        steps_per_epoch=len(X_train) // BATCH_SIZE,
+        X_train,
+        y_train,
         epochs=EPOCHS,
         verbose=1,
         callbacks=[checkpoint, metrics_logger],
-        validation_data=(X_val, y_val),
     )
-
     # Đánh giá mô hình trên dữ liệu kiểm tra của fold hiện tại
-    scores = model.evaluate(
-        inputs[test_indices], targets_one_hot[test_indices], verbose=1
-    )
+    scores = model.evaluate(X_test, y_test, verbose=1)
     print(
         f"Score for fold {fold_no}: {model.metrics_names[0]} of {scores[0]}; {model.metrics_names[1]} of {scores[1]*100}%"
     )
@@ -258,5 +213,5 @@ for fold_no, (train_indices, test_indices) in enumerate(
         targets[test_indices],
         y_pred,
         class_names,
-        f"classification_report_MobileNet_v3_v1_A_tangcuong.txt",
+        f"classification_report_MobileNet_v3_v1_A_khongtangcuong_fold{fold_no}.txt",
     )
