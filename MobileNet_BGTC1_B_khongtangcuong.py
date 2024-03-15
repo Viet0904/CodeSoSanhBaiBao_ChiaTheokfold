@@ -113,11 +113,13 @@ checkpoint = ModelCheckpoint(
     mode="max",
 )
 
-
 class MetricsLogger(Callback):
-    def __init__(self, log_file, X_val, y_val):
+    def __init__(self, log_file, X_val, y_val, fold_no, log_file_prefix):
         super().__init__()
         self.log_file = log_file
+        self.fold_no = fold_no
+        self.log_file_prefix = log_file_prefix
+        self.epoch_count = 0
         self.X_val = X_val
         self.y_val = y_val
         self.header_written = False
@@ -138,11 +140,18 @@ class MetricsLogger(Callback):
                 f"{epoch+1}\t{logs['loss']:.5f}\t{logs['accuracy']:.5f}\t{logs['val_loss']:.5f}\t{logs['val_accuracy']:.5f}\t{logs['val_recall']:.5f}\t{logs['val_precision']:.5f}\t{mcc:.5f}\t{cmc:.5f}\t{f1:.5f}\n"
             )
 
+        confusion_matrix_file = f"{self.log_file_prefix}_fold{self.fold_no}.txt"
+        save_confusion_matrix_append(y_true, y_pred, class_names, confusion_matrix_file)
 
-def save_confusion_matrix(y_true, y_pred, class_names, file_path):
+    def on_train_end(self, logs=None):
+        print(f"Confusion matrix for fold {self.fold_no} has been saved.")
+
+
+def save_confusion_matrix_append(y_true, y_pred, class_names, file_path):
     cm = confusion_matrix(y_true, y_pred)
     df_cm = pd.DataFrame(cm, index=class_names, columns=class_names)
-    df_cm.to_csv(file_path, sep="\t")
+    with open(file_path, "a") as f:
+        df_cm.to_csv(f, sep="\t", mode="a")
 
 
 def save_classification_report(y_true, y_pred, class_names, file_path):
@@ -163,8 +172,13 @@ for fold_no, (train_indices, test_indices) in enumerate(
     )
     # Khởi tạo MetricsLogger mới cho mỗi fold
     metrics_logger = MetricsLogger(
-        f"metrics_MobileNet_BGTC1_B_khongtangcuong_fold_{fold_no}.log", X_val, y_val
+        f"metrics_MobileNetB_BGTC_khongtangcuong_fold_{fold_no}.log",
+        X_val,
+        y_val,
+        fold_no,
+        f"confusion_matrix_MobileNetB_BGTC_khongtangcuong",
     )
+    
     history = model.fit(
         X_train,
         y_train,
@@ -185,16 +199,11 @@ for fold_no, (train_indices, test_indices) in enumerate(
     y_pred = model.predict(inputs[test_indices])
     y_pred = np.argmax(y_pred, axis=1)
 
-    save_confusion_matrix(
-        targets[test_indices],
-        y_pred,
-        class_names,
-        f"confusion_matrix_MobileNet_BGTC1_B_khongtangcuong.csv",
-    )
+
 
     save_classification_report(
         targets[test_indices],
         y_pred,
         class_names,
-        f"classification_report_MobileNet_BGTC1_B_khongtangcuong.txt",
+        f"classification_report_MobileNetB_BGTC1_khongtangcuong.txt",
     )

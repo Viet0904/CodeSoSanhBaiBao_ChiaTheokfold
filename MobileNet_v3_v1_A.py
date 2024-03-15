@@ -51,7 +51,7 @@ targets = []
 IMG_SIZE = (224, 224)
 BATCH_SIZE = 32
 NUM_CLASSES = 5
-EPOCHS = 1
+EPOCHS = 100
 for class_index, class_name in enumerate(class_names):
     class_dir = os.path.join(data_dir, class_name)
     for image_name in os.listdir(class_dir):
@@ -126,9 +126,12 @@ checkpoint = ModelCheckpoint(
 
 
 class MetricsLogger(Callback):
-    def __init__(self, log_file, X_val, y_val):
+    def __init__(self, log_file, X_val, y_val, fold_no, log_file_prefix):
         super().__init__()
         self.log_file = log_file
+        self.fold_no = fold_no
+        self.log_file_prefix = log_file_prefix
+        self.epoch_count = 0
         self.X_val = X_val
         self.y_val = y_val
         self.header_written = False
@@ -149,11 +152,18 @@ class MetricsLogger(Callback):
                 f"{epoch+1}\t{logs['loss']:.5f}\t{logs['accuracy']:.5f}\t{logs['val_loss']:.5f}\t{logs['val_accuracy']:.5f}\t{logs['val_recall']:.5f}\t{logs['val_precision']:.5f}\t{mcc:.5f}\t{cmc:.5f}\t{f1:.5f}\n"
             )
 
+        confusion_matrix_file = f"{self.log_file_prefix}_fold{self.fold_no}.txt"
+        save_confusion_matrix_append(y_true, y_pred, class_names, confusion_matrix_file)
 
-def save_confusion_matrix(y_true, y_pred, class_names, file_path):
+    def on_train_end(self, logs=None):
+        print(f"Confusion matrix for fold {self.fold_no} has been saved.")
+
+
+def save_confusion_matrix_append(y_true, y_pred, class_names, file_path):
     cm = confusion_matrix(y_true, y_pred)
     df_cm = pd.DataFrame(cm, index=class_names, columns=class_names)
-    df_cm.to_csv(file_path, sep="\t")
+    with open(file_path, "a") as f:
+        df_cm.to_csv(f, sep="\t", mode="a")
 
 
 def save_classification_report(y_true, y_pred, class_names, file_path):
@@ -174,7 +184,11 @@ for fold_no, (train_indices, test_indices) in enumerate(
     )
     # Khởi tạo MetricsLogger mới cho mỗi fold
     metrics_logger = MetricsLogger(
-        f"metrics_MobileNet_v3_v1_A_tangcuong_fold_{fold_no}.log", X_val, y_val
+        f"metrics_MobileNet_v3_v1_A_tangcuong_fold_{fold_no}.log",
+        X_val,
+        y_val,
+        fold_no,
+        f"confusion_matrix_MobileNet_v3_v1_A_tangcuong",
     )
     # Khởi tạo ImageDataGenerator để áp dụng tăng cường dữ liệu cho tập huấn luyện của fold hiện tại
     train_datagen = ImageDataGenerator(
@@ -211,13 +225,6 @@ for fold_no, (train_indices, test_indices) in enumerate(
     # Tính toán các metric
     y_pred = model.predict(inputs[test_indices])
     y_pred = np.argmax(y_pred, axis=1)
-
-    save_confusion_matrix(
-        targets[test_indices],
-        y_pred,
-        class_names,
-        f"confusion_matrix_MobileNet_v3_v1_A_tangcuong.csv",
-    )
 
     save_classification_report(
         targets[test_indices],
