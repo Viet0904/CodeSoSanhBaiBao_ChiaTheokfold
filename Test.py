@@ -10,9 +10,9 @@ import pandas as pd
 from tensorflow.keras.callbacks import Callback
 from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.utils import to_categorical
+from sklearn.model_selection import train_test_split
 from sklearn.model_selection import KFold
 from PIL import Image
-from sklearn.model_selection import train_test_split
 import numpy as np
 
 from sklearn.metrics import (
@@ -79,15 +79,24 @@ def build_model():
     for layer in base_model.layers:
         layer.trainable = False
 
-        model = models.Sequential(
-            [
-                base_model,
-                layers.GlobalAveragePooling2D(),
-                layers.Dense(1024, activation="relu"),
-                layers.Dropout(0.3),
-                layers.Dense(NUM_CLASSES, activation="softmax"),
-            ]
-        )
+    model = models.Sequential(
+        [
+            base_model,
+            layers.MaxPooling2D(),  # Add max pooling layer
+            layers.Dense(2048, activation="relu"),
+            layers.BatchNormalization(),  # Add batch normalization layer
+            layers.GlobalAveragePooling2D(),
+            layers.Dropout(0.3),
+            layers.Dense(1024, activation="relu"),
+            layers.BatchNormalization(),  # Add batch normalization layer
+            layers.Dropout(0.3),
+            layers.Dense(512, activation="relu"),  # Add additional dense layer
+            layers.BatchNormalization(),  # Add batch normalization layer
+            layers.Dropout(0.3),
+            layers.Dense(128, activation="relu"),  # Add additional dense layer
+            layers.Dense(NUM_CLASSES, activation="softmax"),
+        ]
+    )
 
     model.compile(
         optimizer=Adam(learning_rate=0.0001),
@@ -108,7 +117,7 @@ def build_model():
 targets_one_hot = to_categorical(targets, num_classes)
 
 checkpoint = ModelCheckpoint(
-    "best_model_MobileNetC_tangcuongv1.keras",
+    "best_model_MobileNet_v3_v1_A_tangcuong.keras",
     monitor="val_accuracy",
     verbose=1,
     save_best_only=True,
@@ -160,15 +169,22 @@ for fold_no, (train_indices, test_indices) in enumerate(
     model = build_model()
     model.build((None, *IMG_SIZE, 3))
     model.summary()
-    X_train, X_val, y_train, y_val = train_test_split(
+    # Chia tập dữ liệu thành tập Train và Test
+    X_train, X_test, y_train, y_test = train_test_split(
         inputs, targets_one_hot, test_size=0.2, random_state=42
     )
+    # Trước khi tăng cường dữ liệu
+    y_pred_before_augmentation = model.predict(X_train)
+    y_pred_before_augmentation = np.argmax(y_pred_before_augmentation, axis=1)
 
-    # Khởi tạo MetricsLogger mới cho mỗi fold
-    metrics_logger = MetricsLogger(
-        f"metrics_MobileNetC_tangcuongv1_fold_{fold_no}.log", X_val, y_val
+    # Tính và lưu confusion matrix
+    save_confusion_matrix(
+        np.argmax(y_train, axis=1),
+        y_pred_before_augmentation,
+        class_names,
+        f"confusion_matrix_before_augmentation{fold_no}.csv",
     )
-    # Khởi tạo ImageDataGenerator để áp dụng tăng cường dữ liệu cho tập huấn luyện của fold hiện tại
+    # Tạo generator để tăng cường dữ liệu trên tập Train
     train_datagen = ImageDataGenerator(
         rotation_range=20,
         width_shift_range=0.2,
@@ -179,16 +195,35 @@ for fold_no, (train_indices, test_indices) in enumerate(
         horizontal_flip=False,
         fill_mode="nearest",
     )
-    # Tạo ra dữ liệu augmented từ dữ liệu train
+
+    # Áp dụng tăng cường dữ liệu trên tập Train
     train_generator = train_datagen.flow(X_train, y_train, batch_size=BATCH_SIZE)
 
+    # Sử dụng tập Test không tăng cường dữ liệu
+    test_generator = ImageDataGenerator().flow(X_test, y_test, batch_size=BATCH_SIZE)
+    metrics_logger = MetricsLogger(
+        f"metrics_MobileNet_v3_v1_A_tangcuong_fold_{fold_no}.log", X_test, y_test
+    )
     # Huấn luyện mô hình với dữ liệu tăng cường của fold hiện tại
     history = model.fit(
         train_generator,
+        steps_per_epoch=len(X_train) // BATCH_SIZE,
         epochs=EPOCHS,
         verbose=1,
         callbacks=[checkpoint, metrics_logger],
-        validation_data=(X_val, y_val),
+        validation_data=(X_test, y_test),
+    )
+
+    # Sử dụng mô hình đã huấn luyện để dự đoán nhãn trên tập train sau khi tăng cường
+    y_pred_after_augmentation = model.predict(train_generator)
+    y_pred_after_augmentation = np.argmax(y_pred_after_augmentation, axis=1)
+
+    # Tính và lưu confusion matrix sau khi tăng cường dữ liệu
+    save_confusion_matrix(
+        np.argmax(y_train, axis=1),
+        y_pred_after_augmentation,
+        class_names,
+        f"confusion_matrix_after_augmentation_{fold_no}.csv",
     )
     # Đánh giá mô hình trên dữ liệu kiểm tra của fold hiện tại
     scores = model.evaluate(
@@ -206,12 +241,12 @@ for fold_no, (train_indices, test_indices) in enumerate(
         targets[test_indices],
         y_pred,
         class_names,
-        f"confusion_matrix_MobileNetC_tangcuongv1.csv",
+        f"confusion_matrix_MobileNet_v3_v1_A_tangcuong_{fold_no}.csv",
     )
 
     save_classification_report(
         targets[test_indices],
         y_pred,
         class_names,
-        f"classification_report_MobileNetC_tangcuongv1.txt",
+        f"classification_report_MobileNet_v3_v1_A_tangcuong.txt",
     )
