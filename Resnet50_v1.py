@@ -1,38 +1,30 @@
 import os
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.applications import MobileNet
+from tensorflow.keras.applications import ResNet50
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras import layers, models
 from tensorflow.keras.optimizers import Adam
 import datetime
 import pandas as pd
-from tensorflow.keras.callbacks import Callback
-from tensorflow.keras.callbacks import ModelCheckpoint
+from tensorflow.keras.callbacks import Callback, ModelCheckpoint
 from tensorflow.keras.utils import to_categorical
-from sklearn.model_selection import train_test_split
 from sklearn.model_selection import KFold
 from PIL import Image
 import numpy as np
-
 from sklearn.metrics import (
-    precision_score,
-    recall_score,
-    f1_score,
     confusion_matrix,
     classification_report,
     matthews_corrcoef,
     cohen_kappa_score,
+    f1_score,
 )
 
 
 def preprocess_image(image_path, target_size=(224, 224)):
     image = Image.open(image_path)
-
     image = image.resize(target_size)
-
     image_array = np.array(image)
-
     image_array = image_array.astype("float32") / 255.0
     return image_array
 
@@ -62,7 +54,6 @@ for class_index, class_name in enumerate(class_names):
 inputs = np.array(inputs)
 targets = np.array(targets)
 
-
 # Định nghĩa các tham số của K-fold Cross Validation
 num_folds = 5
 kfold = KFold(n_splits=num_folds, shuffle=True)
@@ -72,7 +63,7 @@ loss_per_fold = []
 
 
 def build_model():
-    base_model = MobileNet(
+    base_model = ResNet50(
         weights="imagenet", include_top=False, input_shape=(*IMG_SIZE, 3)
     )
 
@@ -117,7 +108,7 @@ def build_model():
 targets_one_hot = to_categorical(targets, num_classes)
 
 checkpoint = ModelCheckpoint(
-    "best_model_MobileNet_v3_v5_A_tangcuong.keras",
+    "best_model_ResNet50_v1_tangcuong.keras",
     monitor="val_accuracy",
     verbose=1,
     save_best_only=True,
@@ -192,11 +183,11 @@ for fold_no, (train_indices, test_indices) in enumerate(
     print(confusion_matrix_train_before_augmentation)
     # Khởi tạo MetricsLogger mới cho mỗi fold
     metrics_logger = MetricsLogger(
-        f"metrics_MobileNet_v3_v5_A_tangcuong_fold_{fold_no}.log",
+        f"metrics_ResNet50_v1_tangcuong_fold_{fold_no}.log",
         X_val,
         y_val,
         fold_no,
-        f"confusion_matrix_MobileNet_v3_v5_A_tangcuong",
+        f"confusion_matrix_ResNet50_v1_tangcuong",
     )
     # Khởi tạo ImageDataGenerator để áp dụng tăng cường dữ liệu cho tập huấn luyện của fold hiện tại
     train_datagen = ImageDataGenerator(
@@ -258,5 +249,5 @@ for fold_no, (train_indices, test_indices) in enumerate(
         targets[test_indices],
         y_pred,
         class_names,
-        f"classification_report_MobileNet_v3_v5_A_tangcuong.txt",
+        f"classification_report_ResNet50_v1_tangcuong.txt",
     )
