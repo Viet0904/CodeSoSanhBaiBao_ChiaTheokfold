@@ -46,7 +46,7 @@ num_classes = len(class_names)
 inputs = []
 targets = []
 
-IMG_SIZE = (224, 224)
+IMG_SIZE = (260, 260)
 BATCH_SIZE = 16
 NUM_CLASSES = 5
 EPOCHS = 100
