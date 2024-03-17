@@ -1,169 +1,141 @@
 import os
-import cv2
 import numpy as np
-from sklearn.model_selection import KFold
-import random
+import cv2
+import tensorflow as tf
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import (
+    Input,
+    Conv2D,
+    MaxPooling2D,
+    Dropout,
+    concatenate,
+    Conv2DTranspose,
+)
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import ModelCheckpoint
+from sklearn.model_selection import train_test_split
 
 
-# Function để đọc bounding box từ file label
-def read_labels(label_file):
-    with open(label_file, "r") as f:
-        lines = f.readlines()
-    labels = []
-    for line in lines:
-        line = line.strip().split()
-        labels.append(
-            [
-                int(line[0]),
-                float(line[1]),
-                float(line[2]),
-                float(line[3]),
-                float(line[4]),
-            ]
-        )
-    return labels
+def load_data(data_path, target_size=(256, 256)):
+    images = []
+    masks = []
+    for class_name in os.listdir(data_path):
+        if class_name.endswith("_mask"):
+            continue
+        class_path = os.path.join(data_path, class_name)
+        mask_path = os.path.join(data_path, f"{class_name}_mask")
+        for filename in os.listdir(class_path):
+            if filename.endswith(".jpg") or filename.endswith(".png"):
+                image_path = os.path.join(class_path, filename)
+                mask_image_filename = filename.split(".")[0] + ".jpg"
+                mask_image_path = os.path.join(mask_path, mask_image_filename)
+                if os.path.isfile(image_path) and os.path.isfile(mask_image_path):
+                    image = cv2.imread(image_path)
+                    mask = cv2.imread(mask_image_path, cv2.IMREAD_GRAYSCALE)
+
+                    # Chuyển đổi kích thước ảnh và mask
+                    image = cv2.resize(image, target_size)
+                    mask = cv2.resize(mask, target_size)
+
+                    images.append(image)
+                    masks.append(mask)
+    return np.array(images), np.array(masks)
 
 
-# Function để vẽ bounding box và label
-def draw_bounding_box(image, x, y, w, h, color):
-    cv2.rectangle(image, (x, y), (x + w, y + h), color, 2)
+# Hàm xây dựng mô hình U-Net
+def unet(input_shape):
+    inputs = Input(input_shape)
+    conv1 = Conv2D(64, 3, activation="relu", padding="same")(inputs)
+    conv1 = Conv2D(64, 3, activation="relu", padding="same")(conv1)
+    pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
+
+    conv2 = Conv2D(128, 3, activation="relu", padding="same")(pool1)
+    conv2 = Conv2D(128, 3, activation="relu", padding="same")(conv2)
+    pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
+
+    conv3 = Conv2D(256, 3, activation="relu", padding="same")(pool2)
+    conv3 = Conv2D(256, 3, activation="relu", padding="same")(conv3)
+    pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
+
+    conv4 = Conv2D(512, 3, activation="relu", padding="same")(pool3)
+    conv4 = Conv2D(512, 3, activation="relu", padding="same")(conv4)
+    drop4 = Dropout(0.5)(conv4)
+    pool4 = MaxPooling2D(pool_size=(2, 2))(drop4)
+
+    conv5 = Conv2D(1024, 3, activation="relu", padding="same")(pool4)
+    conv5 = Conv2D(1024, 3, activation="relu", padding="same")(conv5)
+    drop5 = Dropout(0.5)(conv5)
+
+    up6 = Conv2D(512, 2, activation="relu", padding="same")(
+        Conv2DTranspose(512, (2, 2), strides=(2, 2), padding="same")(drop5)
+    )
+    merge6 = concatenate([drop4, up6], axis=3)
+    conv6 = Conv2D(512, 3, activation="relu", padding="same")(merge6)
+    conv6 = Conv2D(512, 3, activation="relu", padding="same")(conv6)
+
+    up7 = Conv2D(256, 2, activation="relu", padding="same")(
+        Conv2DTranspose(256, (2, 2), strides=(2, 2), padding="same")(conv6)
+    )
+    merge7 = concatenate([conv3, up7], axis=3)
+    conv7 = Conv2D(256, 3, activation="relu", padding="same")(merge7)
+    conv7 = Conv2D(256, 3, activation="relu", padding="same")(conv7)
+
+    up8 = Conv2D(128, 2, activation="relu", padding="same")(
+        Conv2DTranspose(128, (2, 2), strides=(2, 2), padding="same")(conv7)
+    )
+    merge8 = concatenate([conv2, up8], axis=3)
+    conv8 = Conv2D(128, 3, activation="relu", padding="same")(merge8)
+    conv8 = Conv2D(128, 3, activation="relu", padding="same")(conv8)
+
+    up9 = Conv2D(64, 2, activation="relu", padding="same")(
+        Conv2DTranspose(64, (2, 2), strides=(2, 2), padding="same")(conv8)
+    )
+    merge9 = concatenate([conv1, up9], axis=3)
+    conv9 = Conv2D(64, 3, activation="relu", padding="same")(merge9)
+    conv9 = Conv2D(64, 3, activation="relu", padding="same")(conv9)
+    conv9 = Conv2D(2, 3, activation="relu", padding="same")(conv9)
+    conv10 = Conv2D(1, 1, activation="sigmoid")(conv9)
+
+    model = Model(inputs=[inputs], outputs=[conv10])
+
+    return model
 
 
-# Function để thực hiện tăng cường dữ liệu trên tập train
-def data_augmentation(image, labels):
-    # Randomly flip horizontally
-    if random.random() < 0.5:
-        image = cv2.flip(image, 1)
-        for label in labels:
-            label[1] = 1 - label[1]  # Update x position for flipped image
+# Thư mục chứa dữ liệu
+data_path = "./Guava Dataset"
 
-    # Other augmentation techniques such as rotation, brightness adjustment, noise addition can be added here
+# Load dữ liệu
+images, masks = load_data(data_path)
 
-    return image, labels
+# Chia dữ liệu thành tập train và tập validation
+train_images, val_images, train_masks, val_masks = train_test_split(
+    images, masks, test_size=0.2, random_state=42
+)
 
+# Chuẩn hóa dữ liệu
+train_images = train_images / 255.0
+val_images = val_images / 255.0
+train_masks = train_masks / 255.0
+val_masks = val_masks / 255.0
 
-# Function để thực hiện instance segmentation và tăng cường dữ liệu trên tập train
-def instance_segmentation(image_dir, label_dir, output_dir, augment=False):
-    # Load pre-trained YOLO model
-    net = cv2.dnn.readNet("yolov3.weights", "yolov3.cfg")
-    layer_names = net.getLayerNames()
-    output_layers = [layer_names[i[0] - 1] for i in net.getUnconnectedOutLayers()]
+# Xây dựng mô hình
+input_shape = (256, 256, 3)  # Kích thước ảnh đầu vào
+model = unet(input_shape)
 
-    # Load labels
-    classes = []
-    with open("coco.names", "r") as f:
-        classes = [line.strip() for line in f.readlines()]
+# Compile mô hình
+model.compile(optimizer=Adam(lr=1e-4), loss="binary_crossentropy", metrics=["accuracy"])
 
-    for filename in os.listdir(image_dir):
-        if filename.endswith(".jpg"):
-            image_path = os.path.join(image_dir, filename)
-            image = cv2.imread(image_path)
+# Định nghĩa callback để lưu mô hình tốt nhất
+checkpoint = ModelCheckpoint(
+    "unet_model.h5", monitor="val_accuracy", verbose=1, save_best_only=True, mode="max"
+)
 
-            label_file = os.path.join(label_dir, os.path.splitext(filename)[0] + ".txt")
-            if os.path.exists(label_file):
-                labels = read_labels(label_file)
-
-                # Perform data augmentation if needed
-                if augment:
-                    image, labels = data_augmentation(image, labels)
-
-                # Process image, predict, draw bounding box, etc.
-                height, width, _ = image.shape
-                blob = cv2.dnn.blobFromImage(
-                    image, 0.00392, (416, 416), (0, 0, 0), True, crop=False
-                )
-                net.setInput(blob)
-                outs = net.forward(output_layers)
-
-                for out in outs:
-                    for detection in out:
-                        scores = detection[5:]
-                        class_id = np.argmax(scores)
-                        confidence = scores[class_id]
-                        if confidence > 0.5:
-                            center_x = int(detection[0] * width)
-                            center_y = int(detection[1] * height)
-                            w = int(detection[2] * width)
-                            h = int(detection[3] * height)
-                            x = int(center_x - w / 2)
-                            y = int(center_y - h / 2)
-                            for label in labels:
-                                if label[0] == class_id:
-                                    draw_bounding_box(
-                                        image, x, y, w, h, (255, 0, 0)
-                                    )  # Màu đỏ
-
-                # Save augmented image and labels
-                output_path = os.path.join(output_dir, filename)
-                cv2.imwrite(output_path, image)
-
-                with open(
-                    os.path.join(
-                        output_dir.replace("images", "labels"),
-                        os.path.splitext(filename)[0] + ".txt",
-                    ),
-                    "w",
-                ) as f:
-                    for label in labels:
-                        f.write(" ".join([str(x) for x in label]) + "\n")
-
-
-# Thực hiện k-fold cross-validation
-def k_fold_cross_validation(image_dir, label_dir, output_dir, k=5, augment=False):
-    filenames = os.listdir(image_dir)
-    kf = KFold(n_splits=k, shuffle=True, random_state=42)
-    for i, (train_index, test_index) in enumerate(kf.split(filenames)):
-        train_filenames = [filenames[idx] for idx in train_index]
-        test_filenames = [filenames[idx] for idx in test_index]
-
-        # Tạo thư mục cho từng fold
-        fold_train_dir = os.path.join(output_dir, f"fold_{i+1}", "train")
-        fold_test_dir = os.path.join(output_dir, f"fold_{i+1}", "test")
-        os.makedirs(fold_train_dir, exist_ok=True)
-        os.makedirs(fold_test_dir, exist_ok=True)
-
-        # Sao chép các ảnh và label vào các thư mục tương ứng của mỗi fold
-        for filename in train_filenames:
-            image_src = os.path.join(image_dir, filename)
-            label_src = os.path.join(label_dir, os.path.splitext(filename)[0] + ".txt")
-            image_dst = os.path.join(fold_train_dir, filename)
-            label_dst = os.path.join(
-                fold_train_dir.replace("images", "labels"),
-                os.path.splitext(filename)[0] + ".txt",
-            )
-            os.makedirs(os.path.dirname(image_dst), exist_ok=True)
-            os.makedirs(os.path.dirname(label_dst), exist_ok=True)
-            os.system(f"cp {image_src} {image_dst}")
-            os.system(f"cp {label_src} {label_dst}")
-
-        for filename in test_filenames:
-            image_src = os.path.join(image_dir, filename)
-            label_src = os.path.join(label_dir, os.path.splitext(filename)[0] + ".txt")
-            image_dst = os.path.join(fold_test_dir, filename)
-            label_dst = os.path.join(
-                fold_test_dir.replace("test", "labels"),
-                os.path.splitext(filename)[0] + ".txt",
-            )
-            os.makedirs(os.path.dirname(image_dst), exist_ok=True)
-            os.makedirs(os.path.dirname(label_dst), exist_ok=True)
-            os.system(f"cp {image_src} {image_dst}")
-            os.system(f"cp {label_src} {label_dst}")
-
-        # Thực hiện instance segmentation với tăng cường dữ liệu trên tập train
-        instance_segmentation(
-            fold_train_dir.replace("train", "images"),
-            fold_train_dir.replace("images", "labels"),
-            fold_train_dir,
-            augment=augment,
-        )
-        instance_segmentation(
-            fold_test_dir.replace("test", "images"),
-            fold_test_dir.replace("images", "labels"),
-            fold_test_dir,
-        )
-
-
-# Thực hiện k-fold cross-validation với tăng cường dữ liệu trên tập train
-k_fold_cross_validation(
-    "train/images", "train/labels", "k_fold_result_augmented", k=5, augment=True
+# Huấn luyện mô hình
+history = model.fit(
+    train_images,
+    train_masks,
+    validation_data=(val_images, val_masks),
+    batch_size=16,
+    epochs=50,
+    callbacks=[checkpoint],
 )
