@@ -113,6 +113,7 @@ checkpoint = ModelCheckpoint(
     mode="max",
 )
 
+
 class MetricsLogger(Callback):
     def __init__(self, log_file, X_val, y_val, fold_no, log_file_prefix):
         super().__init__()
@@ -178,10 +179,11 @@ for fold_no, (train_indices, test_indices) in enumerate(
         fold_no,
         f"confusion_matrix_MobileNetB_BGTC_khongtangcuong",
     )
-    
+
     history = model.fit(
         X_train,
         y_train,
+        steps_per_epoch=len(X_train) // BATCH_SIZE,
         epochs=EPOCHS,
         verbose=1,
         callbacks=[checkpoint, metrics_logger],
@@ -198,8 +200,6 @@ for fold_no, (train_indices, test_indices) in enumerate(
     # Tính toán các metric
     y_pred = model.predict(inputs[test_indices])
     y_pred = np.argmax(y_pred, axis=1)
-
-
 
     save_classification_report(
         targets[test_indices],

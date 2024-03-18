@@ -11,7 +11,6 @@ import pandas as pd
 from tensorflow.keras.callbacks import Callback
 from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.utils import to_categorical
-from sklearn.model_selection import train_test_split
 from sklearn.model_selection import KFold
 from PIL import Image
 import numpy as np
@@ -235,7 +234,6 @@ for fold_no, (train_indices, test_indices) in enumerate(
     # Huấn luyện mô hình với dữ liệu tăng cường của fold hiện tại
     history = model.fit(
         train_generator,
-        steps_per_epoch=len(X_train) // BATCH_SIZE,
         epochs=EPOCHS,
         verbose=1,
         callbacks=[checkpoint, metrics_logger],
