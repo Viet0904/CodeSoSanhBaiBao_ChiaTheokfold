@@ -214,7 +214,6 @@ for fold_no, (train_indices, test_indices) in enumerate(
     y_pred = model.predict(inputs[test_indices])
     y_pred = np.argmax(y_pred, axis=1)
 
-
     save_classification_report(
         targets[test_indices],
         y_pred,

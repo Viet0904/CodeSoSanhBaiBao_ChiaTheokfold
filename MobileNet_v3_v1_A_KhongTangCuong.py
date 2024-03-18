@@ -77,7 +77,7 @@ def build_model():
     )
 
     for layer in base_model.layers:
-        layer.trainable = False
+        layer.trainable = True
 
     model = models.Sequential(
         [
