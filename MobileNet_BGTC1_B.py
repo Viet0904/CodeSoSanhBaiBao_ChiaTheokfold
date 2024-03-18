@@ -10,9 +10,9 @@ import pandas as pd
 from tensorflow.keras.callbacks import Callback
 from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.utils import to_categorical
+from sklearn.model_selection import train_test_split
 from sklearn.model_selection import KFold
 from PIL import Image
-from sklearn.model_selection import train_test_split
 import numpy as np
 
 from sklearn.metrics import (
@@ -51,7 +51,9 @@ targets = []
 IMG_SIZE = (224, 224)
 BATCH_SIZE = 32
 NUM_CLASSES = 5
-EPOCHS = 100
+EPOCHS = 1
+
+
 for class_index, class_name in enumerate(class_names):
     class_dir = os.path.join(data_dir, class_name)
     for image_name in os.listdir(class_dir):
@@ -106,7 +108,7 @@ def build_model():
 targets_one_hot = to_categorical(targets, num_classes)
 
 checkpoint = ModelCheckpoint(
-    "best_model_MobileNet_BGTC1_B_tangcuong.keras",
+    "best_model_MobileNet_BGTC_B_tangcuong.keras",
     monitor="val_accuracy",
     verbose=1,
     save_best_only=True,
@@ -164,22 +166,29 @@ def save_classification_report(y_true, y_pred, class_names, file_path):
 for fold_no, (train_indices, test_indices) in enumerate(
     kfold.split(inputs, targets), 1
 ):
+    X_train, X_val = inputs[train_indices], inputs[test_indices]
+    y_train, y_val = targets_one_hot[train_indices], targets_one_hot[test_indices]
+
     # Reset model mỗi lần chạy fold mới
     model = build_model()
     model.build((None, *IMG_SIZE, 3))
     model.summary()
-    X_train, X_val, y_train, y_val = train_test_split(
-        inputs, targets_one_hot, test_size=0.2, random_state=42
+    # Tính toán confusion matrix cho tập train trước khi tăng cường
+    y_train_pred_before_augmentation = np.argmax(model.predict(X_train), axis=1)
+    y_train_true = np.argmax(y_train, axis=1)
+    confusion_matrix_train_before_augmentation = confusion_matrix(
+        y_train_true, y_train_pred_before_augmentation
     )
+    print("Confusion matrix for train data before augmentation:")
+    print(confusion_matrix_train_before_augmentation)
     # Khởi tạo MetricsLogger mới cho mỗi fold
     metrics_logger = MetricsLogger(
-        f"metrics_MobileNetB_BGTC_tangcuong_fold_{fold_no}.log",
+        f"metrics_MobileNet_BGTC_B_tangcuong_fold_{fold_no}.log",
         X_val,
         y_val,
         fold_no,
-        f"confusion_matrix_MobileNetB_BGTC_tangcuong",
+        f"confusion_matrix_MobileNet_BGTC_B_tangcuong",
     )
-
     # Khởi tạo ImageDataGenerator để áp dụng tăng cường dữ liệu cho tập huấn luyện của fold hiện tại
     train_datagen = ImageDataGenerator(
         rotation_range=20,
@@ -193,15 +202,37 @@ for fold_no, (train_indices, test_indices) in enumerate(
     )
     # Tạo ra dữ liệu augmented từ dữ liệu train
     train_generator = train_datagen.flow(X_train, y_train, batch_size=BATCH_SIZE)
+    # Tính toán confusion matrix cho tập train sau khi tăng cường
+    y_train_pred_after_augmentation = np.argmax(model.predict(train_generator), axis=1)
+    confusion_matrix_train_after_augmentation = confusion_matrix(
+        y_train_true, y_train_pred_after_augmentation
+    )
+    print("Confusion matrix for train data after augmentation:")
+    print(confusion_matrix_train_after_augmentation)
 
+    # Lưu confusion matrix vào file
+    np.savetxt(
+        "confusion_matrix_train_before_augmentation.txt",
+        confusion_matrix_train_before_augmentation,
+        fmt="%d",
+        delimiter="\t",
+    )
+    np.savetxt(
+        "confusion_matrix_train_after_augmentation.txt",
+        confusion_matrix_train_after_augmentation,
+        fmt="%d",
+        delimiter="\t",
+    )
     # Huấn luyện mô hình với dữ liệu tăng cường của fold hiện tại
     history = model.fit(
         train_generator,
+        steps_per_epoch=len(X_train) // BATCH_SIZE,
         epochs=EPOCHS,
         verbose=1,
         callbacks=[checkpoint, metrics_logger],
         validation_data=(X_val, y_val),
     )
+
     # Đánh giá mô hình trên dữ liệu kiểm tra của fold hiện tại
     scores = model.evaluate(
         inputs[test_indices], targets_one_hot[test_indices], verbose=1
@@ -218,5 +249,5 @@ for fold_no, (train_indices, test_indices) in enumerate(
         targets[test_indices],
         y_pred,
         class_names,
-        f"classification_report_MobileNetB_BGTC_tangcuong.txt",
+        f"classification_report_MobileNet_BGTC_B_tangcuong.txt",
     )
