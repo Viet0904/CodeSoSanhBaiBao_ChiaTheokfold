@@ -51,7 +51,7 @@ targets = []
 IMG_SIZE = (224, 224)
 BATCH_SIZE = 32
 NUM_CLASSES = 5
-EPOCHS = 1
+EPOCHS = 100
 
 
 for class_index, class_name in enumerate(class_names):
