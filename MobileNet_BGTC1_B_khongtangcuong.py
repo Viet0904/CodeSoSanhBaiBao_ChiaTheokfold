@@ -12,7 +12,7 @@ from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.utils import to_categorical
 from sklearn.model_selection import KFold
 from PIL import Image
-from sklearn.model_selection import train_test_split
+
 import numpy as np
 
 from sklearn.metrics import (
@@ -49,7 +49,7 @@ inputs = []
 targets = []
 
 IMG_SIZE = (224, 224)
-BATCH_SIZE = 32
+BATCH_SIZE = 16
 NUM_CLASSES = 5
 EPOCHS = 100
 for class_index, class_name in enumerate(class_names):
@@ -164,13 +164,12 @@ def save_classification_report(y_true, y_pred, class_names, file_path):
 for fold_no, (train_indices, test_indices) in enumerate(
     kfold.split(inputs, targets), 1
 ):
+    X_train, X_val = inputs[train_indices], inputs[test_indices]
+    y_train, y_val = targets_one_hot[train_indices], targets_one_hot[test_indices]
     # Reset model mỗi lần chạy fold mới
     model = build_model()
     model.build((None, *IMG_SIZE, 3))
     model.summary()
-    X_train, X_val, y_train, y_val = train_test_split(
-        inputs, targets_one_hot, test_size=0.2, random_state=42
-    )
     # Khởi tạo MetricsLogger mới cho mỗi fold
     metrics_logger = MetricsLogger(
         f"metrics_MobileNetB_BGTC_khongtangcuong_fold_{fold_no}.log",
@@ -183,7 +182,6 @@ for fold_no, (train_indices, test_indices) in enumerate(
     history = model.fit(
         X_train,
         y_train,
-        steps_per_epoch=len(X_train) // BATCH_SIZE,
         epochs=EPOCHS,
         verbose=1,
         callbacks=[checkpoint, metrics_logger],

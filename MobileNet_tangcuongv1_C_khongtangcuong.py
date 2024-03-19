@@ -12,7 +12,7 @@ from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.utils import to_categorical
 from sklearn.model_selection import KFold
 from PIL import Image
-from sklearn.model_selection import train_test_split
+
 import numpy as np
 
 from sklearn.metrics import (
@@ -166,13 +166,12 @@ def save_classification_report(y_true, y_pred, class_names, file_path):
 for fold_no, (train_indices, test_indices) in enumerate(
     kfold.split(inputs, targets), 1
 ):
+    X_train, X_val = inputs[train_indices], inputs[test_indices]
+    y_train, y_val = targets_one_hot[train_indices], targets_one_hot[test_indices]
     # Reset model mỗi lần chạy fold mới
     model = build_model()
     model.build((None, *IMG_SIZE, 3))
     model.summary()
-    X_train, X_val, y_train, y_val = train_test_split(
-        inputs, targets_one_hot, test_size=0.2, random_state=42
-    )
     # Khởi tạo MetricsLogger mới cho mỗi fold
     metrics_logger = MetricsLogger(
         f"metrics_MobileNetC_khongtangcuongv1_fold_{fold_no}.log",
