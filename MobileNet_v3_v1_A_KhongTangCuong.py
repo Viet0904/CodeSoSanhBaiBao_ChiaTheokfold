@@ -50,7 +50,7 @@ targets = []
 IMG_SIZE = (224, 224)
 BATCH_SIZE = 16
 NUM_CLASSES = 5
-EPOCHS = 3
+EPOCHS = 100
 for class_index, class_name in enumerate(class_names):
     class_dir = os.path.join(data_dir, class_name)
     for image_name in os.listdir(class_dir):
@@ -102,12 +102,12 @@ def build_model():
         loss="categorical_crossentropy",
         metrics=[
             "accuracy",
-            tf.keras.metrics.Precision(name="precision_1"),  # Đổi tên thành precision_1
+            tf.keras.metrics.Precision(),  # Đổi tên thành precision_1
             tf.keras.metrics.Recall(),
             tf.keras.metrics.Precision(
-                name="test_precision"
+                name="val_precision"
             ),  # Giữ nguyên tên precision
-            tf.keras.metrics.Recall(name="test_recall"),
+            tf.keras.metrics.Recall(name="val_recall"),
         ],
     )
 
@@ -127,30 +127,30 @@ checkpoint = ModelCheckpoint(
 
 
 class MetricsLogger(Callback):
-    def __init__(self, log_file, X_test, y_test, fold_no, log_file_prefix):
+    def __init__(self, log_file, X_val, y_val, fold_no, log_file_prefix):
         super().__init__()
         self.log_file = log_file
         self.fold_no = fold_no
         self.log_file_prefix = log_file_prefix
         self.epoch_count = 0
-        self.X_test = X_test
-        self.y_test = y_test
+        self.X_val = X_val
+        self.y_val = y_val
         self.header_written = False
 
     def on_epoch_end(self, epoch, logs=None):
         with open(self.log_file, "a") as f:
             if not self.header_written:
                 f.write(
-                    "Epoch\tTrain loss\tTrain accuracy\ttest_loss\ttest_accuracy\ttest_recall\ttest_precision\ttest_MCC\ttest_CMC\ttest_F1-Score\n"
+                    "Epoch\tTrain loss\tTrain accuracy\tvalid_loss\tvalid_accuracy\tvalid_recall\tvalid_precision\tvalid_MCC\tvalid_CMC\tvalid_F1-Score\n"
                 )
                 self.header_written = True
-            y_true = np.argmax(self.y_test, axis=1)
-            y_pred = np.argmax(self.model.predict(self.X_test), axis=1)
+            y_true = np.argmax(self.y_val, axis=1)
+            y_pred = np.argmax(self.model.predict(self.X_val), axis=1)
             mcc = matthews_corrcoef(y_true, y_pred)
             cmc = cohen_kappa_score(y_true, y_pred)
             f1 = f1_score(y_true, y_pred, average="weighted")
             f.write(
-                f"{epoch+1}\t{logs['loss']:.5f}\t{logs['accuracy']:.5f}\t{logs['loss']:.5f}\t{logs['accuracy']:.5f}\t{logs['test_recall']:.5f}\t{logs['test_precision']:.5f}\t{mcc:.5f}\t{cmc:.5f}\t{f1:.5f}\n"
+                f"{epoch+1}\t{logs['loss']:.5f}\t{logs['accuracy']:.5f}\t{logs['loss']:.5f}\t{logs['accuracy']:.5f}\t{logs['val_recall']:.5f}\t{logs['val_precision']:.5f}\t{mcc:.5f}\t{cmc:.5f}\t{f1:.5f}\n"
             )
 
         confusion_matrix_file = f"{self.log_file_prefix}_fold{self.fold_no}.txt"
@@ -176,8 +176,8 @@ def save_classification_report(y_true, y_pred, class_names, file_path):
 for fold_no, (train_indices, test_indices) in enumerate(
     kfold.split(inputs, targets), 1
 ):
-    X_train, X_test = inputs[train_indices], inputs[test_indices]
-    y_train, y_test = targets_one_hot[train_indices], targets_one_hot[test_indices]
+    X_train, X_val = inputs[train_indices], inputs[test_indices]
+    y_train, y_val = targets_one_hot[train_indices], targets_one_hot[test_indices]
 
     # Reset model mỗi lần chạy fold mới
     model = build_model()
@@ -186,8 +186,8 @@ for fold_no, (train_indices, test_indices) in enumerate(
     # Khởi tạo MetricsLogger mới cho mỗi fold
     metrics_logger = MetricsLogger(
         f"metrics_MobileNet_v3_v1_A_khongtangcuong_fold_{fold_no}.log",
-        X_test,
-        y_test,
+        X_val,
+        y_val,
         fold_no,
         f"confusion_matrix_MobileNet_v3_v1_A_khongtangcuong",
     )
@@ -197,9 +197,10 @@ for fold_no, (train_indices, test_indices) in enumerate(
         epochs=EPOCHS,
         verbose=1,
         callbacks=[checkpoint, metrics_logger],
+        validation_data=(X_val, y_val),
     )
     # Đánh giá mô hình trên dữ liệu kiểm tra của fold hiện tại
-    scores = model.evaluate(X_test, y_test, verbose=1)
+    scores = model.evaluate(X_val, y_val, verbose=1)
     print(
         f"Score for fold {fold_no}: {model.metrics_names[0]} of {scores[0]}; {model.metrics_names[1]} of {scores[1]*100}%"
     )
