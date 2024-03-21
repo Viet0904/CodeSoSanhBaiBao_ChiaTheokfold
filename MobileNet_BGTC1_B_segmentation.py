@@ -37,7 +37,7 @@ def preprocess_image(image_path, target_size=(224, 224)):
 
 
 # Thư mục chứa dữ liệu
-data_dir = "./Guava Dataset/"
+data_dir = "./Guava Dataset Segmentation"
 
 # List các tên lớp (tên thư mục trong data_dir)
 class_names = os.listdir(data_dir)
@@ -83,18 +83,7 @@ def build_model():
     model = models.Sequential(
         [
             base_model,
-            layers.MaxPooling2D(),  # Add max pooling layer
-            layers.Dense(2048, activation="relu"),
-            layers.BatchNormalization(),  # Add batch normalization layer
-            layers.GlobalAveragePooling2D(),
-            layers.Dropout(0.3),
-            layers.Dense(1024, activation="relu"),
-            layers.BatchNormalization(),  # Add batch normalization layer
-            layers.Dropout(0.3),
-            layers.Dense(512, activation="relu"),  # Add additional dense layer
-            layers.BatchNormalization(),  # Add batch normalization layer
-            layers.Dropout(0.3),
-            layers.Dense(128, activation="relu"),  # Add additional dense layer
+            layers.Flatten(),
             layers.Dense(NUM_CLASSES, activation="softmax"),
         ]
     )
@@ -118,7 +107,7 @@ def build_model():
 targets_one_hot = to_categorical(targets, num_classes)
 
 checkpoint = ModelCheckpoint(
-    "best_model_MobileNet_v3_v3_A_tangcuong.keras",
+    "best_model_MobileNet_BGTC_B_tangcuong.keras",
     monitor="val_accuracy",
     verbose=1,
     save_best_only=True,
@@ -193,11 +182,11 @@ for fold_no, (train_indices, test_indices) in enumerate(
     print(confusion_matrix_train_before_augmentation)
     # Khởi tạo MetricsLogger mới cho mỗi fold
     metrics_logger = MetricsLogger(
-        f"metrics_MobileNet_v3_v3_A_tangcuong_fold_{fold_no}.log",
+        f"metrics_MobileNet_BGTC_B_tangcuong_fold_{fold_no}.log",
         X_val,
         y_val,
         fold_no,
-        f"confusion_matrix_MobileNet_v3_v3_A_tangcuong",
+        f"confusion_matrix_MobileNet_BGTC_B_tangcuong",
     )
     # Khởi tạo ImageDataGenerator để áp dụng tăng cường dữ liệu cho tập huấn luyện của fold hiện tại
     train_datagen = ImageDataGenerator(
@@ -258,5 +247,5 @@ for fold_no, (train_indices, test_indices) in enumerate(
         targets[test_indices],
         y_pred,
         class_names,
-        f"classification_report_MobileNet_v3_v3_A_tangcuong.txt",
+        f"classification_report_MobileNet_BGTC_B_tangcuong.txt",
     )

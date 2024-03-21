@@ -37,7 +37,7 @@ def preprocess_image(image_path, target_size=(224, 224)):
 
 
 # Thư mục chứa dữ liệu
-data_dir = "./Guava Dataset/"
+data_dir = "./Guava Dataset Segmentation"
 
 # List các tên lớp (tên thư mục trong data_dir)
 class_names = os.listdir(data_dir)
