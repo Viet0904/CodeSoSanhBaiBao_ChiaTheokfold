@@ -10,7 +10,7 @@ import pandas as pd
 from tensorflow.keras.callbacks import Callback
 from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.utils import to_categorical
-from sklearn.model_selection import train_test_split
+
 from sklearn.model_selection import KFold
 from PIL import Image
 
@@ -25,7 +25,7 @@ from sklearn.metrics import (
 )
 
 # Import ACO algorithm implementation library
-from MetaheuristicOptimization import ACO
+from metaheuristic_algorithms import ACO
 
 
 def preprocess_image(image_path, target_size=(224, 224)):
