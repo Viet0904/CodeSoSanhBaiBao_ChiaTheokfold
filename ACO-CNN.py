@@ -10,8 +10,10 @@ import pandas as pd
 from tensorflow.keras.callbacks import Callback
 from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.utils import to_categorical
+from sklearn.model_selection import train_test_split
 from sklearn.model_selection import KFold
 from PIL import Image
+import numpy as np
 
 from sklearn.metrics import (
     precision_score,
@@ -23,24 +25,26 @@ from sklearn.metrics import (
     cohen_kappa_score,
 )
 
-# Import ACO algorithm implementation library
-from MetaheuristicOptimization import ACO
-
 
 def preprocess_image(image_path, target_size=(224, 224)):
     image = Image.open(image_path)
+
     image = image.resize(target_size)
+
     image_array = np.array(image)
+
     image_array = image_array.astype("float32") / 255.0
     return image_array
 
 
-# Data directory
+# Thư mục chứa dữ liệu
 data_dir = "./Guava Dataset/"
+
+# List các tên lớp (tên thư mục trong data_dir)
 class_names = os.listdir(data_dir)
 num_classes = len(class_names)
 
-# Load data from directory
+# Load dữ liệu từ thư mục
 inputs = []
 targets = []
 
@@ -48,6 +52,7 @@ IMG_SIZE = (224, 224)
 BATCH_SIZE = 16
 NUM_CLASSES = 5
 EPOCHS = 100
+
 
 for class_index, class_name in enumerate(class_names):
     class_dir = os.path.join(data_dir, class_name)
@@ -59,22 +64,13 @@ for class_index, class_name in enumerate(class_names):
 inputs = np.array(inputs)
 targets = np.array(targets)
 
-# Convert labels to one-hot encoding
-targets_one_hot = to_categorical(targets, num_classes)
 
-# Define K-fold Cross Validation parameters
+# Định nghĩa các tham số của K-fold Cross Validation
 num_folds = 5
 kfold = KFold(n_splits=num_folds, shuffle=True)
 fold_no = 1
-
-# ACO parameters
-aco_params = {
-    "num_iterations": 100,
-    "num_ants": 10,
-    "alpha": 1.0,
-    "beta": 2.0,
-    "rho": 0.5,
-}
+acc_per_fold = []
+loss_per_fold = []
 
 
 def build_model():
@@ -119,7 +115,18 @@ def build_model():
     return model
 
 
-# Callback for logging metrics
+# Chuyển đổi nhãn thành one-hot encoding
+targets_one_hot = to_categorical(targets, num_classes)
+
+checkpoint = ModelCheckpoint(
+    "best_model_MobileNet_v3_v3_A_tangcuong.keras",
+    monitor="val_accuracy",
+    verbose=1,
+    save_best_only=True,
+    mode="max",
+)
+
+
 class MetricsLogger(Callback):
     def __init__(self, log_file, X_val, y_val, fold_no, log_file_prefix):
         super().__init__()
@@ -154,17 +161,6 @@ class MetricsLogger(Callback):
         print(f"Confusion matrix for fold {self.fold_no} has been saved.")
 
 
-# Callback for saving the best model
-checkpoint = ModelCheckpoint(
-    "best_model_MobileNet_ACO_CNN.keras",
-    monitor="val_accuracy",
-    verbose=1,
-    save_best_only=True,
-    mode="max",
-)
-
-
-# Function to save confusion matrix
 def save_confusion_matrix_append(y_true, y_pred, class_names, file_path):
     cm = confusion_matrix(y_true, y_pred)
     df_cm = pd.DataFrame(cm, index=class_names, columns=class_names)
@@ -172,62 +168,82 @@ def save_confusion_matrix_append(y_true, y_pred, class_names, file_path):
         df_cm.to_csv(f, sep="\t", mode="a")
 
 
-# Function to save classification report
 def save_classification_report(y_true, y_pred, class_names, file_path):
     report = classification_report(y_true, y_pred, target_names=class_names)
     with open(file_path, "a") as f:
         f.write(report)
 
 
-# Main training loop
 for fold_no, (train_indices, test_indices) in enumerate(
     kfold.split(inputs, targets), 1
 ):
     X_train, X_val = inputs[train_indices], inputs[test_indices]
     y_train, y_val = targets_one_hot[train_indices], targets_one_hot[test_indices]
 
-    # Reset model for each fold
+    # Reset model mỗi lần chạy fold mới
     model = build_model()
     model.build((None, *IMG_SIZE, 3))
     model.summary()
+    # Tính toán confusion matrix cho tập train trước khi tăng cường
+    y_train_pred_before_augmentation = np.argmax(model.predict(X_train), axis=1)
+    y_train_true = np.argmax(y_train, axis=1)
+    confusion_matrix_train_before_augmentation = confusion_matrix(
+        y_train_true, y_train_pred_before_augmentation
+    )
+    print("Confusion matrix for train data before augmentation:")
+    print(confusion_matrix_train_before_augmentation)
+    # Khởi tạo MetricsLogger mới cho mỗi fold
     metrics_logger = MetricsLogger(
-        f"metrics_MobileNet_ACO_CNN_fold_{fold_no}.log",
+        f"metrics_MobileNet_v3_v3_A_tangcuong_fold_{fold_no}.log",
         X_val,
         y_val,
         fold_no,
-        f"confusion_matrix_MobileNet_ACO_CNN",
+        f"confusion_matrix_MobileNet_v3_v3_A_tangcuong",
+    )
+    # Khởi tạo ImageDataGenerator để áp dụng tăng cường dữ liệu cho tập huấn luyện của fold hiện tại
+    train_datagen = ImageDataGenerator(
+        rotation_range=20,
+        width_shift_range=0.2,
+        height_shift_range=0.2,
+        shear_range=0.2,
+        zoom_range=0.2,
+        vertical_flip=True,
+        horizontal_flip=False,
+        fill_mode="nearest",
+    )
+    # Tạo ra dữ liệu augmented từ dữ liệu train
+    train_generator = train_datagen.flow(X_train, y_train, batch_size=BATCH_SIZE)
+    # Tính toán confusion matrix cho tập train sau khi tăng cường
+    y_train_pred_after_augmentation = np.argmax(model.predict(train_generator), axis=1)
+    confusion_matrix_train_after_augmentation = confusion_matrix(
+        y_train_true, y_train_pred_after_augmentation
+    )
+    print("Confusion matrix for train data after augmentation:")
+    print(confusion_matrix_train_after_augmentation)
+
+    # Lưu confusion matrix vào file
+    np.savetxt(
+        "confusion_matrix_train_before_augmentation.txt",
+        confusion_matrix_train_before_augmentation,
+        fmt="%d",
+        delimiter="\t",
+    )
+    np.savetxt(
+        "confusion_matrix_train_after_augmentation.txt",
+        confusion_matrix_train_after_augmentation,
+        fmt="%d",
+        delimiter="\t",
+    )
+    # Huấn luyện mô hình với dữ liệu tăng cường của fold hiện tại
+    history = model.fit(
+        train_generator,
+        epochs=EPOCHS,
+        verbose=1,
+        callbacks=[checkpoint, metrics_logger],
+        validation_data=(X_val, y_val),
     )
 
-    # ACO optimization for model training
-    def fitness_func(solution):
-        # Set model weights based on solution
-        model.set_weights(solution)
-        # Train the model
-        history = model.fit(
-            X_train,
-            y_train,
-            epochs=EPOCHS,
-            batch_size=BATCH_SIZE,
-            verbose=1,
-            callbacks=[checkpoint, metrics_logger],
-            validation_data=(X_val, y_val),
-        )
-        # Calculate validation loss
-        val_loss = history.history["val_loss"][-1]
-        return val_loss
-
-    # Initialize ACO optimizer
-    aco = ACO(
-        num_parameters=model.count_params(), fitness_function=fitness_func, **aco_params
-    )
-
-    # Optimize model parameters using ACO
-    best_solution = aco.optimize()
-
-    # Set model weights to the best solution found by ACO
-    model.set_weights(best_solution)
-
-    # Evaluate the model on test data
+    # Đánh giá mô hình trên dữ liệu kiểm tra của fold hiện tại
     scores = model.evaluate(
         inputs[test_indices], targets_one_hot[test_indices], verbose=1
     )
@@ -235,16 +251,13 @@ for fold_no, (train_indices, test_indices) in enumerate(
         f"Score for fold {fold_no}: {model.metrics_names[0]} of {scores[0]}; {model.metrics_names[1]} of {scores[1]*100}%"
     )
 
-    # Calculate metrics for test data
+    # Tính toán các metric
     y_pred = model.predict(inputs[test_indices])
     y_pred = np.argmax(y_pred, axis=1)
 
-    # Save classification report
     save_classification_report(
         targets[test_indices],
         y_pred,
         class_names,
-        f"classification_report_MobileNet_ACO_CNN.txt",
+        f"classification_report_MobileNet_v3_v3_A_tangcuong.txt",
     )
-
-    # Initialize MetricsLogger for each fold
