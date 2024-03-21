@@ -119,7 +119,7 @@ def build_model():
 targets_one_hot = to_categorical(targets, num_classes)
 
 checkpoint = ModelCheckpoint(
-    "best_model_MobileNet_v3_v3_A_tangcuong.keras",
+    "best_model_MobileNet_ACO-CNN.keras",
     monitor="val_accuracy",
     verbose=1,
     save_best_only=True,
@@ -184,21 +184,13 @@ for fold_no, (train_indices, test_indices) in enumerate(
     model = build_model()
     model.build((None, *IMG_SIZE, 3))
     model.summary()
-    # Tính toán confusion matrix cho tập train trước khi tăng cường
-    y_train_pred_before_augmentation = np.argmax(model.predict(X_train), axis=1)
-    y_train_true = np.argmax(y_train, axis=1)
-    confusion_matrix_train_before_augmentation = confusion_matrix(
-        y_train_true, y_train_pred_before_augmentation
-    )
-    print("Confusion matrix for train data before augmentation:")
-    print(confusion_matrix_train_before_augmentation)
     # Khởi tạo MetricsLogger mới cho mỗi fold
     metrics_logger = MetricsLogger(
-        f"metrics_MobileNet_v3_v3_A_tangcuong_fold_{fold_no}.log",
+        f"metrics_MobileNet_ACO-CNN_fold_{fold_no}.log",
         X_val,
         y_val,
         fold_no,
-        f"confusion_matrix_MobileNet_v3_v3_A_tangcuong",
+        f"confusion_matrix_MobileNet_ACO-CNN",
     )
     # Khởi tạo ImageDataGenerator để áp dụng tăng cường dữ liệu cho tập huấn luyện của fold hiện tại
     train_datagen = ImageDataGenerator(
@@ -213,27 +205,6 @@ for fold_no, (train_indices, test_indices) in enumerate(
     )
     # Tạo ra dữ liệu augmented từ dữ liệu train
     train_generator = train_datagen.flow(X_train, y_train, batch_size=BATCH_SIZE)
-    # Tính toán confusion matrix cho tập train sau khi tăng cường
-    y_train_pred_after_augmentation = np.argmax(model.predict(train_generator), axis=1)
-    confusion_matrix_train_after_augmentation = confusion_matrix(
-        y_train_true, y_train_pred_after_augmentation
-    )
-    print("Confusion matrix for train data after augmentation:")
-    print(confusion_matrix_train_after_augmentation)
-
-    # Lưu confusion matrix vào file
-    np.savetxt(
-        "confusion_matrix_train_before_augmentation.txt",
-        confusion_matrix_train_before_augmentation,
-        fmt="%d",
-        delimiter="\t",
-    )
-    np.savetxt(
-        "confusion_matrix_train_after_augmentation.txt",
-        confusion_matrix_train_after_augmentation,
-        fmt="%d",
-        delimiter="\t",
-    )
     # Huấn luyện mô hình với dữ liệu tăng cường của fold hiện tại
     history = model.fit(
         train_generator,
@@ -259,5 +230,5 @@ for fold_no, (train_indices, test_indices) in enumerate(
         targets[test_indices],
         y_pred,
         class_names,
-        f"classification_report_MobileNet_v3_v3_A_tangcuong.txt",
+        f"classification_report_MobileNet_ACO-CNN.txt",
     )
