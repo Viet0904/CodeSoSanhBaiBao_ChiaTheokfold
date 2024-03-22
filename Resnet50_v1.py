@@ -210,19 +210,6 @@ for fold_no, (train_indices, test_indices) in enumerate(
     print("Confusion matrix for train data after augmentation:")
     print(confusion_matrix_train_after_augmentation)
 
-    # Lưu confusion matrix vào file
-    np.savetxt(
-        "confusion_matrix_train_before_augmentation.txt",
-        confusion_matrix_train_before_augmentation,
-        fmt="%d",
-        delimiter="\t",
-    )
-    np.savetxt(
-        "confusion_matrix_train_after_augmentation.txt",
-        confusion_matrix_train_after_augmentation,
-        fmt="%d",
-        delimiter="\t",
-    )
     # Huấn luyện mô hình với dữ liệu tăng cường của fold hiện tại
     history = model.fit(
         train_generator,
