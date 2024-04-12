@@ -25,6 +25,12 @@ from sklearn.metrics import (
     cohen_kappa_score,
 )
 
+# Lấy danh sách các thiết bị GPU có sẵn
+gpu_devices = tf.config.experimental.list_physical_devices("GPU")
+
+# Thiết lập chế độ memory growth cho mỗi thiết bị GPU
+for device in gpu_devices:
+    tf.config.experimental.set_memory_growth(device, True)
 
 def preprocess_image(image_path, target_size=(380, 380)):
     image = Image.open(image_path)
