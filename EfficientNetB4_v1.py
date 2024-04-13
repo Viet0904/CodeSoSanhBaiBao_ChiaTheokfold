@@ -32,6 +32,7 @@ gpu_devices = tf.config.experimental.list_physical_devices("GPU")
 for device in gpu_devices:
     tf.config.experimental.set_memory_growth(device, True)
 
+
 def preprocess_image(image_path, target_size=(380, 380)):
     image = Image.open(image_path)
     image = image.resize(target_size)
