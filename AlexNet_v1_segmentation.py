@@ -34,6 +34,7 @@ def preprocess_image(image_path, target_size=(227, 227)):
     return image_array
 
 
+# Directory containing the data
 data_dir = "Segmentation_120_255"
 
 # List of class names (directory names in data_dir)
@@ -69,7 +70,7 @@ acc_per_fold = []
 loss_per_fold = []
 
 
-# Function to build the AlexNet_segmentation model
+# Function to build the AlexNet_tangcuong model
 def build_model():
     model = models.Sequential(
         [
@@ -121,7 +122,7 @@ targets_one_hot = to_categorical(targets, num_classes)
 
 # Define ModelCheckpoint callback
 checkpoint = ModelCheckpoint(
-    "best_model_AlexNet_segmentation.keras",
+    "best_model_AlexNet_tangcuong.keras",
     monitor="val_accuracy",
     verbose=1,
     save_best_only=True,
@@ -193,17 +194,27 @@ for fold_no, (train_indices, test_indices) in enumerate(
 
     # Initialize MetricsLogger for each fold
     metrics_logger = MetricsLogger(
-        f"metrics_AlexNet_segmentation_fold_{fold_no}.log",
+        f"metrics_AlexNet_tangcuong_fold_{fold_no}.log",
         X_val,
         y_val,
         fold_no,
-        f"confusion_matrix_AlexNet_segmentation",
+        f"confusion_matrix_AlexNet_tangcuong",
     )
-
+    train_datagen = ImageDataGenerator(
+        rotation_range=20,
+        width_shift_range=0.2,
+        height_shift_range=0.2,
+        shear_range=0.2,
+        zoom_range=0.2,
+        vertical_flip=True,
+        horizontal_flip=False,
+        fill_mode="nearest",
+    )
+    # Tạo ra dữ liệu augmented từ dữ liệu train
+    train_generator = train_datagen.flow(X_train, y_train, batch_size=BATCH_SIZE)
     # Train the model
     history = model.fit(
-        X_train,
-        y_train,
+        train_generator,
         batch_size=BATCH_SIZE,
         epochs=EPOCHS,
         verbose=1,
@@ -228,5 +239,5 @@ for fold_no, (train_indices, test_indices) in enumerate(
         targets[test_indices],
         y_pred,
         class_names,
-        f"classification_report_AlexNet_segmentation_fold_{fold_no}.txt",
+        f"classification_report_AlexNet_tangcuong.txt",
     )
