@@ -38,7 +38,7 @@ def preprocess_image(image_path, target_size=(224, 224)):
 
 
 # Thư mục chứa dữ liệu
-data_dir = "./Guava Dataset Segmentation"
+data_dir = "Segmentation_120_255"
 
 # List các tên lớp (tên thư mục trong data_dir)
 class_names = os.listdir(data_dir)
@@ -108,7 +108,7 @@ def build_model():
 targets_one_hot = to_categorical(targets, num_classes)
 
 checkpoint = ModelCheckpoint(
-    "best_model_MobileNetC_tangcuongv1.keras",
+    "best_model_MobileNetC_segmentation_tangcuongv1.keras",
     monitor="val_accuracy",
     verbose=1,
     save_best_only=True,
@@ -176,11 +176,11 @@ for fold_no, (train_indices, test_indices) in enumerate(
 
     # Khởi tạo MetricsLogger mới cho mỗi fold
     metrics_logger = MetricsLogger(
-        f"metrics_MobileNetC_tangcuongv1_fold_{fold_no}.log",
+        f"metrics_MobileNetC_segmentation_tangcuongv1_fold_{fold_no}.log",
         X_val,
         y_val,
         fold_no,
-        f"confusion_matrix_MobileNetC_tangcuongv1",
+        f"confusion_matrix_MobileNetC_segmentation_tangcuongv1",
     )
 
     # Khởi tạo ImageDataGenerator để áp dụng tăng cường dữ liệu cho tập huấn luyện của fold hiện tại
@@ -221,5 +221,5 @@ for fold_no, (train_indices, test_indices) in enumerate(
         targets[test_indices],
         y_pred,
         class_names,
-        f"classification_report_MobileNetC_tangcuongv1.txt",
+        f"classification_report_MobileNetC_segmentation_tangcuongv1.txt",
     )
