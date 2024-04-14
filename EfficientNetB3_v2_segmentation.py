@@ -93,7 +93,6 @@ def build_model():
             layers.BatchNormalization(),
             layers.Dropout(0.3),
             layers.Dense(128, activation="relu"),
-            layers.flatten(),
             layers.Dense(NUM_CLASSES, activation="softmax"),
         ]
     )
@@ -121,7 +120,6 @@ checkpoint = ModelCheckpoint(
     monitor="val_accuracy",
     verbose=1,
     save_best_only=True,
-    save_weights_only=False,
     mode="max",
 )
 
