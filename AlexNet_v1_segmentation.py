@@ -34,7 +34,7 @@ def preprocess_image(image_path, target_size=(227, 227)):
     return image_array
 
 
-# Directory containing the data
+data_dir = "Segmentation_120_255"
 
 # List of class names (directory names in data_dir)
 class_names = os.listdir(data_dir)

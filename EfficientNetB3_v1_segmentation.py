@@ -93,7 +93,6 @@ def build_model():
             layers.BatchNormalization(),
             layers.Dropout(0.3),
             layers.Dense(128, activation="relu"),
-            layers.flatten(),
             layers.Dense(NUM_CLASSES, activation="softmax"),
         ]
     )
@@ -117,7 +116,7 @@ def build_model():
 targets_one_hot = to_categorical(targets, num_classes)
 
 checkpoint = ModelCheckpoint(
-    "best_model_EfficientNetB3_v2_segmentation_tangcuong.h5",
+    "best_model_EfficientNetB3_v2_segmentation_tangcuong.keras",
     monitor="val_accuracy",
     verbose=1,
     save_best_only=True,
