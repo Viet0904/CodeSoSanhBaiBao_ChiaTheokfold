@@ -10,7 +10,7 @@ def main():
     # Thiết lập các đường dẫn cố định
     input_dir = "./Guava Dataset"
     output_dir = "./output"
-    nguong_duoi = 15
+    nguong_duoi = 35
     nguong_tren = 255
 
     so_anh_da_xuly = 0
