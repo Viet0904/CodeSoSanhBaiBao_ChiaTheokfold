@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 
 # Updated data
 thresholds = [
-    "original results",
+    "0-255",
     "15-255",
     "35-255",
     "55-255",

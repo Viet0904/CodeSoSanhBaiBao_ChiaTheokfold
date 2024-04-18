@@ -210,12 +210,6 @@ for fold_no, (train_indices, test_indices) in enumerate(
     )
     # Tạo ra dữ liệu augmented từ dữ liệu train
     train_generator = train_datagen.flow(X_train, y_train, batch_size=BATCH_SIZE)
-
-    # Calculate steps_per_epoch
-    steps_per_epoch = len(X_train) // BATCH_SIZE
-
-    print(f"Steps per epoch: {steps_per_epoch}")
-
     # Tính toán confusion matrix cho tập train sau khi tăng cường
     y_train_pred_after_augmentation = np.argmax(model.predict(train_generator), axis=1)
     confusion_matrix_train_after_augmentation = confusion_matrix(
@@ -244,7 +238,6 @@ for fold_no, (train_indices, test_indices) in enumerate(
         verbose=1,
         callbacks=[checkpoint, metrics_logger],
         validation_data=(X_val, y_val),
-        steps_per_epoch=steps_per_epoch,  # Add steps_per_epoch argument
     )
 
     # Đánh giá mô hình trên dữ liệu kiểm tra của fold hiện tại
