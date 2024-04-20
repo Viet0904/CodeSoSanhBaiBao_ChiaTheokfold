@@ -1,7 +1,8 @@
 import os
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.applications import MobileNet
+from tensorflow.keras.applications import EfficientNetB3
+
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras import layers, models
 from tensorflow.keras.optimizers import Adam
@@ -10,9 +11,9 @@ import pandas as pd
 from tensorflow.keras.callbacks import Callback
 from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.utils import to_categorical
+from sklearn.model_selection import train_test_split
 from sklearn.model_selection import KFold
 from PIL import Image
-from sklearn.model_selection import train_test_split
 import numpy as np
 
 from sklearn.metrics import (
@@ -26,19 +27,16 @@ from sklearn.metrics import (
 )
 
 
-def preprocess_image(image_path, target_size=(224, 224)):
+def preprocess_image(image_path, target_size=(300, 300)):
     image = Image.open(image_path)
-
     image = image.resize(target_size)
-
     image_array = np.array(image)
-
     image_array = image_array.astype("float32") / 255.0
     return image_array
 
 
 # Thư mục chứa dữ liệu
-data_dir = "Segmentation_120_255"
+data_dir = "./Guava Dataset/"
 
 # List các tên lớp (tên thư mục trong data_dir)
 class_names = os.listdir(data_dir)
@@ -48,7 +46,7 @@ num_classes = len(class_names)
 inputs = []
 targets = []
 
-IMG_SIZE = (224, 224)
+IMG_SIZE = (300, 300)
 BATCH_SIZE = 16
 NUM_CLASSES = 5
 EPOCHS = 100
@@ -72,22 +70,24 @@ loss_per_fold = []
 
 
 def build_model():
-    base_model = MobileNet(
-        weights="imagenet", include_top=False, input_shape=(*IMG_SIZE, 3)
+    base_model = EfficientNetB3(  # Sử dụng EfficientNetB3
+        weights="imagenet",
+        include_top=False,
+        input_shape=(300, 300, 3),
     )
 
     for layer in base_model.layers:
         layer.trainable = True
 
-        model = models.Sequential(
-            [
-                base_model,
-                layers.GlobalAveragePooling2D(),
-                layers.Dense(1024, activation="relu"),
-                layers.Dropout(0.3),
-                layers.Dense(NUM_CLASSES, activation="softmax"),
-            ]
-        )
+    model = models.Sequential(
+        [
+            base_model,
+            layers.GlobalAveragePooling2D(),
+            layers.Dense(1024, activation="relu"),
+            layers.Dropout(0.3),
+            layers.Dense(NUM_CLASSES, activation="softmax"),
+        ]
+    )
 
     model.compile(
         optimizer=Adam(learning_rate=0.0001),
@@ -108,7 +108,7 @@ def build_model():
 targets_one_hot = to_categorical(targets, num_classes)
 
 checkpoint = ModelCheckpoint(
-    "best_model_MobileNetC_segmentation_tangcuongv1.keras",
+    "best_model_EfficientNetB3_v2.keras",
     monitor="val_accuracy",
     verbose=1,
     save_best_only=True,
@@ -166,23 +166,29 @@ def save_classification_report(y_true, y_pred, class_names, file_path):
 for fold_no, (train_indices, test_indices) in enumerate(
     kfold.split(inputs, targets), 1
 ):
+    X_train, X_val = inputs[train_indices], inputs[test_indices]
+    y_train, y_val = targets_one_hot[train_indices], targets_one_hot[test_indices]
+
     # Reset model mỗi lần chạy fold mới
     model = build_model()
     model.build((None, *IMG_SIZE, 3))
     model.summary()
-    X_train, X_val, y_train, y_val = train_test_split(
-        inputs, targets_one_hot, test_size=0.2, random_state=42
+    # Tính toán confusion matrix cho tập train trước khi tăng cường
+    y_train_pred_before_augmentation = np.argmax(model.predict(X_train), axis=1)
+    y_train_true = np.argmax(y_train, axis=1)
+    confusion_matrix_train_before_augmentation = confusion_matrix(
+        y_train_true, y_train_pred_before_augmentation
     )
-
+    print("Confusion matrix for train data before augmentation:")
+    print(confusion_matrix_train_before_augmentation)
     # Khởi tạo MetricsLogger mới cho mỗi fold
     metrics_logger = MetricsLogger(
-        f"metrics_MobileNetC_segmentation_tangcuongv1_fold_{fold_no}.log",
+        f"metrics_EfficientNetB3_v2_fold_{fold_no}.log",
         X_val,
         y_val,
         fold_no,
-        f"confusion_matrix_MobileNetC_segmentation_tangcuongv1",
+        f"confusion_matrix_EfficientNetB3_v2",
     )
-
     # Khởi tạo ImageDataGenerator để áp dụng tăng cường dữ liệu cho tập huấn luyện của fold hiện tại
     train_datagen = ImageDataGenerator(
         rotation_range=20,
@@ -196,7 +202,27 @@ for fold_no, (train_indices, test_indices) in enumerate(
     )
     # Tạo ra dữ liệu augmented từ dữ liệu train
     train_generator = train_datagen.flow(X_train, y_train, batch_size=BATCH_SIZE)
+    # Tính toán confusion matrix cho tập train sau khi tăng cường
+    y_train_pred_after_augmentation = np.argmax(model.predict(train_generator), axis=1)
+    confusion_matrix_train_after_augmentation = confusion_matrix(
+        y_train_true, y_train_pred_after_augmentation
+    )
+    print("Confusion matrix for train data after augmentation:")
+    print(confusion_matrix_train_after_augmentation)
 
+    # Lưu confusion matrix vào file
+    np.savetxt(
+        "confusion_matrix_train_before_augmentation.txt",
+        confusion_matrix_train_before_augmentation,
+        fmt="%d",
+        delimiter="\t",
+    )
+    np.savetxt(
+        "confusion_matrix_train_after_augmentation.txt",
+        confusion_matrix_train_after_augmentation,
+        fmt="%d",
+        delimiter="\t",
+    )
     # Huấn luyện mô hình với dữ liệu tăng cường của fold hiện tại
     history = model.fit(
         train_generator,
@@ -205,6 +231,7 @@ for fold_no, (train_indices, test_indices) in enumerate(
         callbacks=[checkpoint, metrics_logger],
         validation_data=(X_val, y_val),
     )
+
     # Đánh giá mô hình trên dữ liệu kiểm tra của fold hiện tại
     scores = model.evaluate(
         inputs[test_indices], targets_one_hot[test_indices], verbose=1
@@ -221,5 +248,5 @@ for fold_no, (train_indices, test_indices) in enumerate(
         targets[test_indices],
         y_pred,
         class_names,
-        f"classification_report_MobileNetC_segmentation_tangcuongv1.txt",
+        f"classification_report_EfficientNetB3_v2.txt",
     )

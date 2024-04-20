@@ -12,6 +12,7 @@ from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.utils import to_categorical
 from sklearn.model_selection import KFold
 from PIL import Image
+from sklearn.model_selection import train_test_split
 import numpy as np
 
 from sklearn.metrics import (
@@ -37,7 +38,7 @@ def preprocess_image(image_path, target_size=(224, 224)):
 
 
 # Thư mục chứa dữ liệu
-data_dir = "Segmentation_120_255"
+data_dir = "/kaggle/working/CodeSoSanhBaiBao_ChiaTheokfold/output15_255"
 
 # List các tên lớp (tên thư mục trong data_dir)
 class_names = os.listdir(data_dir)
@@ -51,8 +52,6 @@ IMG_SIZE = (224, 224)
 BATCH_SIZE = 16
 NUM_CLASSES = 5
 EPOCHS = 100
-
-
 for class_index, class_name in enumerate(class_names):
     class_dir = os.path.join(data_dir, class_name)
     for image_name in os.listdir(class_dir):
@@ -74,30 +73,21 @@ loss_per_fold = []
 
 def build_model():
     base_model = MobileNet(
-        weights="imagenet", include_top=False, input_shape=(*IMG_SIZE, 3)
+        weights="imagenet", include_top=False, input_shape=(*IMG_SIZE, 1)
     )
 
     for layer in base_model.layers:
         layer.trainable = True
 
-    model = models.Sequential(
-        [
-            base_model,
-            layers.MaxPooling2D(),  # Add max pooling layer
-            layers.Dense(2048, activation="relu"),
-            layers.BatchNormalization(),  # Add batch normalization layer
-            layers.GlobalAveragePooling2D(),
-            layers.Dropout(0.3),
-            layers.Dense(1024, activation="relu"),
-            layers.BatchNormalization(),  # Add batch normalization layer
-            layers.Dropout(0.3),
-            layers.Dense(512, activation="relu"),  # Add additional dense layer
-            layers.BatchNormalization(),  # Add batch normalization layer
-            layers.Dropout(0.3),
-            layers.Dense(128, activation="relu"),  # Add additional dense layer
-            layers.Dense(NUM_CLASSES, activation="softmax"),
-        ]
-    )
+        model = models.Sequential(
+            [
+                base_model,
+                layers.GlobalAveragePooling2D(),
+                layers.Dense(1024, activation="relu"),
+                layers.Dropout(0.3),
+                layers.Dense(NUM_CLASSES, activation="softmax"),
+            ]
+        )
 
     model.compile(
         optimizer=Adam(learning_rate=0.0001),
@@ -118,7 +108,7 @@ def build_model():
 targets_one_hot = to_categorical(targets, num_classes)
 
 checkpoint = ModelCheckpoint(
-    "best_model_MobileNetA_v1_segmentation_tangcuong.keras",
+    "/kaggle/working/best_model_MobileNetC_Segmentation15_255.keras",
     monitor="val_accuracy",
     verbose=1,
     save_best_only=True,
@@ -176,29 +166,23 @@ def save_classification_report(y_true, y_pred, class_names, file_path):
 for fold_no, (train_indices, test_indices) in enumerate(
     kfold.split(inputs, targets), 1
 ):
-    X_train, X_val = inputs[train_indices], inputs[test_indices]
-    y_train, y_val = targets_one_hot[train_indices], targets_one_hot[test_indices]
-
     # Reset model mỗi lần chạy fold mới
     model = build_model()
     model.build((None, *IMG_SIZE, 3))
     model.summary()
-    # Tính toán confusion matrix cho tập train trước khi tăng cường
-    y_train_pred_before_augmentation = np.argmax(model.predict(X_train), axis=1)
-    y_train_true = np.argmax(y_train, axis=1)
-    confusion_matrix_train_before_augmentation = confusion_matrix(
-        y_train_true, y_train_pred_before_augmentation
+    X_train, X_val, y_train, y_val = train_test_split(
+        inputs, targets_one_hot, test_size=0.2, random_state=42
     )
-    print("Confusion matrix for train data before augmentation:")
-    print(confusion_matrix_train_before_augmentation)
+
     # Khởi tạo MetricsLogger mới cho mỗi fold
     metrics_logger = MetricsLogger(
-        f"metrics_MobileNetA_v1_segmentation_tangcuong_fold_{fold_no}.log",
+        f"/kaggle/working/metrics_MobileNetC_Segmentatio15_255_fold_{fold_no}.log",
         X_val,
         y_val,
         fold_no,
-        f"confusion_matrix_MobileNetA_v1_segmentation_tangcuong",
+        f"/kaggle/working/confusion_matrix_MobileNetC_Segmentation15_255",
     )
+
     # Khởi tạo ImageDataGenerator để áp dụng tăng cường dữ liệu cho tập huấn luyện của fold hiện tại
     train_datagen = ImageDataGenerator(
         rotation_range=20,
@@ -212,27 +196,7 @@ for fold_no, (train_indices, test_indices) in enumerate(
     )
     # Tạo ra dữ liệu augmented từ dữ liệu train
     train_generator = train_datagen.flow(X_train, y_train, batch_size=BATCH_SIZE)
-    # Tính toán confusion matrix cho tập train sau khi tăng cường
-    y_train_pred_after_augmentation = np.argmax(model.predict(train_generator), axis=1)
-    confusion_matrix_train_after_augmentation = confusion_matrix(
-        y_train_true, y_train_pred_after_augmentation
-    )
-    print("Confusion matrix for train data after augmentation:")
-    print(confusion_matrix_train_after_augmentation)
 
-    # Lưu confusion matrix vào file
-    np.savetxt(
-        "confusion_matrix_train_before_augmentation.txt",
-        confusion_matrix_train_before_augmentation,
-        fmt="%d",
-        delimiter="\t",
-    )
-    np.savetxt(
-        "confusion_matrix_train_after_augmentation.txt",
-        confusion_matrix_train_after_augmentation,
-        fmt="%d",
-        delimiter="\t",
-    )
     # Huấn luyện mô hình với dữ liệu tăng cường của fold hiện tại
     history = model.fit(
         train_generator,
@@ -241,7 +205,6 @@ for fold_no, (train_indices, test_indices) in enumerate(
         callbacks=[checkpoint, metrics_logger],
         validation_data=(X_val, y_val),
     )
-
     # Đánh giá mô hình trên dữ liệu kiểm tra của fold hiện tại
     scores = model.evaluate(
         inputs[test_indices], targets_one_hot[test_indices], verbose=1
@@ -258,5 +221,5 @@ for fold_no, (train_indices, test_indices) in enumerate(
         targets[test_indices],
         y_pred,
         class_names,
-        f"classification_report_MobileNetA_v1_segmentation_tangcuong.txt",
+        f"/kaggle/working/classification_report_MobileNetC_Segmentation15_255.txt",
     )
