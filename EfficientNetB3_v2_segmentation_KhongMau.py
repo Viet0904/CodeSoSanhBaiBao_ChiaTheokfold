@@ -73,7 +73,7 @@ def build_model():
     base_model = EfficientNetB3(  # Sử dụng EfficientNetB3
         weights="imagenet",
         include_top=False,
-        input_shape=(300, 300, 3),
+        input_shape=(300, 300, 1),
     )
 
     for layer in base_model.layers:
@@ -116,7 +116,7 @@ def build_model():
 targets_one_hot = to_categorical(targets, num_classes)
 
 checkpoint = ModelCheckpoint(
-    "best_model_EfficientNetB3_v2_segmentation_tangcuong.h5",
+    "best_model_EfficientNetB3_v2_segmentation_tangcuong.keras",
     monitor="val_accuracy",
     verbose=1,
     save_best_only=True,
