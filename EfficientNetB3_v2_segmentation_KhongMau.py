@@ -68,12 +68,20 @@ fold_no = 1
 acc_per_fold = []
 loss_per_fold = []
 
+img_height = 300
+img_width = 300
+channels = 3
+
+# Make the input layer
+new_input = layers.Input(shape=(img_height, img_width, channels), name="image_input")
+
 
 def build_model():
     base_model = EfficientNetB3(  # Sử dụng EfficientNetB3
         weights="imagenet",
         include_top=False,
-        input_shape=(300, 300, 1),
+        input_tensor=new_input,
+        pooling="max",
     )
 
     for layer in base_model.layers:
@@ -209,7 +217,9 @@ for fold_no, (train_indices, test_indices) in enumerate(
         fill_mode="nearest",
     )
     # Tạo ra dữ liệu augmented từ dữ liệu train
-    train_generator = train_datagen.flow(X_train, y_train, batch_size=BATCH_SIZE)
+    train_generator = train_datagen.flow(
+        X_train, y_train, batch_size=BATCH_SIZE, color_mode="grayscale"
+    )
     # Tính toán confusion matrix cho tập train sau khi tăng cường
     y_train_pred_after_augmentation = np.argmax(model.predict(train_generator), axis=1)
     confusion_matrix_train_after_augmentation = confusion_matrix(
