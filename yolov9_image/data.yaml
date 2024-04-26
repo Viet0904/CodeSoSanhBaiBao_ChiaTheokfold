@@ -1,0 +1,12 @@
+train: ../train/images
+val: ../valid/images
+
+nc: 5
+names: ['Disease Free', 'Phytopthora', 'Red Rust', 'Scab', 'Styler and Root']
+
+roboflow:
+  workspace: guava
+  project: guava_detect
+  version: 5
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/guava/guava_detect/dataset/5
