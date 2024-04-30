@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.applications import EfficientNetB7
+from tensorflow.keras.applications import EfficientNetB3
 
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras import layers, models
@@ -26,13 +26,6 @@ from sklearn.metrics import (
     cohen_kappa_score,
 )
 
-# Lấy danh sách các thiết bị GPU có sẵn
-gpu_devices = tf.config.experimental.list_physical_devices("GPU")
-
-# Thiết lập chế độ memory growth cho mỗi thiết bị GPU
-for device in gpu_devices:
-    tf.config.experimental.set_memory_growth(device, True)
-
 
 def preprocess_image(image_path, target_size=(300, 300)):
     image = Image.open(image_path)
@@ -43,7 +36,7 @@ def preprocess_image(image_path, target_size=(300, 300)):
 
 
 # Thư mục chứa dữ liệu
-data_dir = "./Guava Dataset/"
+data_dir = "./Segmentation_120_255"
 
 # List các tên lớp (tên thư mục trong data_dir)
 class_names = os.listdir(data_dir)
@@ -53,7 +46,7 @@ num_classes = len(class_names)
 inputs = []
 targets = []
 
-IMG_SIZE = (600, 600)
+IMG_SIZE = (300, 300)
 BATCH_SIZE = 16
 NUM_CLASSES = 5
 EPOCHS = 100
@@ -77,10 +70,10 @@ loss_per_fold = []
 
 
 def build_model():
-    base_model = EfficientNetB6(  # Sử dụng EfficientNetB3
+    base_model = EfficientNetB3(  # Sử dụng EfficientNetB3
         weights="imagenet",
         include_top=False,
-        input_shape=(600, 600, 3),
+        input_shape=(300, 300, 3),
     )
 
     for layer in base_model.layers:
@@ -89,17 +82,7 @@ def build_model():
     model = models.Sequential(
         [
             base_model,
-            layers.GlobalAveragePooling2D(),
-            layers.Dense(2048, activation="relu"),
-            layers.BatchNormalization(),
-            layers.Dropout(0.3),
-            layers.Dense(1024, activation="relu"),
-            layers.BatchNormalization(),
-            layers.Dropout(0.3),
-            layers.Dense(512, activation="relu"),
-            layers.BatchNormalization(),
-            layers.Dropout(0.3),
-            layers.Dense(128, activation="relu"),
+            layer.flatten(),
             layers.Dense(NUM_CLASSES, activation="softmax"),
         ]
     )
@@ -123,7 +106,7 @@ def build_model():
 targets_one_hot = to_categorical(targets, num_classes)
 
 checkpoint = ModelCheckpoint(
-    "best_model_EfficientNetB7_v1_tangcuong.keras",
+    "best_model_EfficientNetB3_v1_segmentation_tangcuong.keras",
     monitor="val_accuracy",
     verbose=1,
     save_best_only=True,
@@ -198,11 +181,11 @@ for fold_no, (train_indices, test_indices) in enumerate(
     print(confusion_matrix_train_before_augmentation)
     # Khởi tạo MetricsLogger mới cho mỗi fold
     metrics_logger = MetricsLogger(
-        f"metrics_EfficientNetB7_v1_tangcuong_fold_{fold_no}.log",
+        f"metrics_EfficientNetB3_v1_segmentation_tangcuong_fold_{fold_no}.log",
         X_val,
         y_val,
         fold_no,
-        f"confusion_matrix_EfficientNetB7_v1_tangcuong",
+        f"confusion_matrix_EfficientNetB3_v1_segmentation_tangcuong",
     )
     # Khởi tạo ImageDataGenerator để áp dụng tăng cường dữ liệu cho tập huấn luyện của fold hiện tại
     train_datagen = ImageDataGenerator(
@@ -263,5 +246,5 @@ for fold_no, (train_indices, test_indices) in enumerate(
         targets[test_indices],
         y_pred,
         class_names,
-        f"classification_report_EfficientNetB7_v1_tangcuong.txt",
+        f"classification_report_EfficientNetB3_v1_segmentation_tangcuong.txt",
     )
