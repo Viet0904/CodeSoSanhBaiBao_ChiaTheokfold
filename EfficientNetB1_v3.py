@@ -82,7 +82,7 @@ def build_model():
     model = models.Sequential(
         [
             base_model,
-            layer.flatten(),
+            layers.Flatten(),
             layers.Dense(NUM_CLASSES, activation="softmax"),
         ]
     )
