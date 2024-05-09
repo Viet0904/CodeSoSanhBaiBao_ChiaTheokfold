@@ -50,7 +50,7 @@ class Ant:
             probability = (q * pheromone_intensity) / (
                 (q * pheromone_intensity) + (1 - q) * image_intensity
             )
-            if np.random.random() < probability:
+            if np.random.random() < probability.item():
                 break
             self.position = new_position
             self.path.append(self.position)
