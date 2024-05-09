@@ -52,7 +52,7 @@ class Ant:
             )
             # Choose a random element from probability array
             random_index = np.random.randint(len(probability))
-            if np.random.random() < probability[random_index]:
+            if np.random.random() < np.all(probability[random_index]):
                 break
             self.position = new_position
             self.path.append(self.position)
