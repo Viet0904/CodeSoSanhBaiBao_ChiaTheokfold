@@ -17,6 +17,11 @@ from sklearn.metrics import (
 from PIL import Image
 from sklearn.metrics import classification_report
 
+IMG_SIZE = (224, 224)
+BATCH_SIZE = 16
+NUM_CLASSES = 5
+EPOCHS = 100
+
 
 def preprocess_image(image_path, target_size=(224, 224)):
     image = Image.open(image_path)
