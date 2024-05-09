@@ -1,47 +1,29 @@
-import os
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.applications import MobileNet
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras import layers, models
-from tensorflow.keras.optimizers import Adam
-import datetime
-import pandas as pd
-from tensorflow.keras.callbacks import Callback
-from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.utils import to_categorical
-
 from sklearn.model_selection import KFold
-from PIL import Image
-
-from sklearn.metrics import (
-    precision_score,
-    recall_score,
-    f1_score,
-    confusion_matrix,
-    classification_report,
-    matthews_corrcoef,
-    cohen_kappa_score,
-)
-
-# Import ACO algorithm implementation library
-from metaheuristic_algorithms import ACO
 
 
 def preprocess_image(image_path, target_size=(224, 224)):
     image = Image.open(image_path)
+
     image = image.resize(target_size)
+
     image_array = np.array(image)
+
     image_array = image_array.astype("float32") / 255.0
     return image_array
 
 
-# Data directory
+# Thư mục chứa dữ liệu
 data_dir = "./Guava Dataset/"
+
+# List các tên lớp (tên thư mục trong data_dir)
 class_names = os.listdir(data_dir)
 num_classes = len(class_names)
 
-# Load data from directory
+# Load dữ liệu từ thư mục
 inputs = []
 targets = []
 
@@ -60,67 +42,17 @@ for class_index, class_name in enumerate(class_names):
 inputs = np.array(inputs)
 targets = np.array(targets)
 
-# Convert labels to one-hot encoding
-targets_one_hot = to_categorical(targets, num_classes)
 
-# Define K-fold Cross Validation parameters
+# Định nghĩa các tham số của K-fold Cross Validation
 num_folds = 5
 kfold = KFold(n_splits=num_folds, shuffle=True)
 fold_no = 1
+acc_per_fold = []
+loss_per_fold = []
 
-# ACO parameters
-aco_params = {
-    "num_iterations": 100,
-    "num_ants": 10,
-    "alpha": 1.0,
-    "beta": 2.0,
-    "rho": 0.5,
-}
+# Chuyển đổi nhãn thành one-hot encoding
+targets_one_hot = to_categorical(targets, num_classes)
 
-
-def build_model():
-    base_model = MobileNet(
-        weights="imagenet", include_top=False, input_shape=(*IMG_SIZE, 3)
-    )
-
-    for layer in base_model.layers:
-        layer.trainable = True
-
-    model = models.Sequential(
-        [
-            base_model,
-            layers.MaxPooling2D(),  # Add max pooling layer
-            layers.Dense(2048, activation="relu"),
-            layers.BatchNormalization(),  # Add batch normalization layer
-            layers.GlobalAveragePooling2D(),
-            layers.Dropout(0.3),
-            layers.Dense(1024, activation="relu"),
-            layers.BatchNormalization(),  # Add batch normalization layer
-            layers.Dropout(0.3),
-            layers.Dense(512, activation="relu"),  # Add additional dense layer
-            layers.BatchNormalization(),  # Add batch normalization layer
-            layers.Dropout(0.3),
-            layers.Dense(128, activation="relu"),  # Add additional dense layer
-            layers.Dense(NUM_CLASSES, activation="softmax"),
-        ]
-    )
-
-    model.compile(
-        optimizer=Adam(learning_rate=0.0001),
-        loss="categorical_crossentropy",
-        metrics=[
-            "accuracy",
-            tf.keras.metrics.Precision(),
-            tf.keras.metrics.Recall(),
-            tf.keras.metrics.Precision(name="val_precision"),
-            tf.keras.metrics.Recall(name="val_recall"),
-        ],
-    )
-
-    return model
-
-
-# Callback for logging metrics
 class MetricsLogger(Callback):
     def __init__(self, log_file, X_val, y_val, fold_no, log_file_prefix):
         super().__init__()
@@ -155,17 +87,6 @@ class MetricsLogger(Callback):
         print(f"Confusion matrix for fold {self.fold_no} has been saved.")
 
 
-# Callback for saving the best model
-checkpoint = ModelCheckpoint(
-    "best_model_MobileNet_ACO_CNN.keras",
-    monitor="val_accuracy",
-    verbose=1,
-    save_best_only=True,
-    mode="max",
-)
-
-
-# Function to save confusion matrix
 def save_confusion_matrix_append(y_true, y_pred, class_names, file_path):
     cm = confusion_matrix(y_true, y_pred)
     df_cm = pd.DataFrame(cm, index=class_names, columns=class_names)
@@ -173,91 +94,186 @@ def save_confusion_matrix_append(y_true, y_pred, class_names, file_path):
         df_cm.to_csv(f, sep="\t", mode="a")
 
 
-# Function to save classification report
 def save_classification_report(y_true, y_pred, class_names, file_path):
     report = classification_report(y_true, y_pred, target_names=class_names)
     with open(file_path, "a") as f:
         f.write(report)
 
 
-# Main training loop
-for fold_no, (train_indices, test_indices) in enumerate(
-    kfold.split(inputs, targets), 1
-):
-    X_train, X_val = inputs[train_indices], inputs[test_indices]
-    y_train, y_val = targets_one_hot[train_indices], targets_one_hot[test_indices]
+def aco_image_segmentation(image):
+    """
+    Phân đoạn hình ảnh bằng thuật toán ACO.
 
-    # Reset model for each fold
-    model = build_model()
-    model.build((None, *IMG_SIZE, 3))
-    model.summary()
+    Args:
+    image: Ma trận ảnh dạng (H, W, C), với H là chiều cao, W là chiều rộng và C là số kênh màu.
+    Returns:
+    segmentation: Ma trận ảnh dạng (H, W), với giá trị là nhãn phân đoạn cho mỗi pixel.
+    """
+    # Khởi tạo các tham số ACO
+    n_ants = 10  # Số lượng kiến
+    pheromone_decay = 0.5  # Hệ số suy giảm pheromone
+    q = 0.9  # Hệ số cân bằng giữa pheromone và mật độ hình ảnh
+    # Khởi tạo dấu vết pheromone
+    pheromone = np.ones_like(image)
+    # Khởi tạo kiến
+    ants = [Ant(image.shape[0], image.shape[1]) for _ in range(n_ants)]
+    # Lặp lại quá trình ACO
+    for _ in range(100):
+        # Di chuyển kiến
+        for ant in ants:
+            ant.move(image, pheromone, q)
 
-    # Initialize MetricsLogger for each fold
-    metrics_logger = MetricsLogger(
-        f"metrics_MobileNet_ACO_CNN_fold_{fold_no}.log",
-        X_val,
-        y_val,
-        fold_no,
-        f"confusion_matrix_MobileNet_ACO_CNN",
+    # Cập nhật dấu vết pheromone
+    for ant in ants:
+        pheromone = pheromone * (1 - pheromone_decay) + ant.pheromone_trail
+
+    # Xác định nhãn phân đoạn cho mỗi pixel
+    segmentation = np.zeros_like(image)
+    for ant in ants:
+        for i, j in ant.path:
+            segmentation[i, j] = ant.id
+    return segmentation
+
+
+class Ant:
+    """
+    Lớp đại diện cho một con kiến trong thuật toán ACO.
+    """
+
+    def __init__(self, height, width):
+        self.height = height
+        self.width = width
+        self.position = (np.random.randint(0, height), np.random.randint(0, width))
+        self.path = []
+        self.pheromone_trail = np.zeros((height, width))
+
+    def move(self, image, pheromone, q):
+        """
+        Di chuyển con kiến một bước.
+        Args:
+        image: Ma trận ảnh dạng (H, W, C), với H là chiều cao, W là chiều rộng và C là số kênh màu.
+        pheromone: Ma trận ảnh dạng (H, W), với giá trị là nồng độ pheromone cho mỗi pixel.
+        q: Hệ số cân bằng giữa pheromone và mật độ hình ảnh.
+        """
+        while True:
+            new_position = self.get_next_position()
+            # Tính toán xác suất di chuyển đến vị trí mới
+            image_intensity = image[new_position]
+            pheromone_intensity = pheromone[new_position]
+            probability = (q * pheromone_intensity) / (
+                (q * pheromone_intensity) + (1 - q) * image_intensity
+            )
+            # Kiểm tra xem có nên di chuyển đến vị trí mới hay không
+            if np.random.random() < probability:
+                break
+
+            # Cập nhật vị trí hiện tại
+            self.position = new_position
+
+            # Thêm vị trí mới vào danh sách đường đi
+            self.path.append(self.position)
+
+            # Cập nhật dấu vết pheromone
+            self.pheromone_trail[self.position] += 1
+
+    def get_next_position(self):
+        """
+        Lấy vị trí tiếp theo của con kiến.
+
+        Returns:
+        new_position: Tuple (i, j), với i là tọa độ hàng và j là tọa độ cột của vị trí mới.
+        """
+        i, j = self.position
+        # Lấy các vị trí lân cận
+        neighbors = [
+            (i + di, j + dj)
+            for di in [-1, 0, 1]
+            for dj in [-1, 0, 1]
+            if 0 <= i + di < self.height
+            and 0 <= j + dj < self.width
+            and (di != 0 or dj != 0)
+        ]
+        # Loại bỏ các vị trí đã đi qua
+        for neighbor in neighbors:
+            if neighbor in self.path:
+                neighbors.remove(neighbor)
+
+
+def extract_features(image, segmentation):
+    """
+    Trích xuất đặc trưng từ hình ảnh phân đoạn bằng MobileNet.
+    Args:
+        image: Ma trận ảnh dạng (H, W, C), với H là chiều cao, W là chiều rộng và C là số kênh màu.
+        segmentation: Ma trận ảnh dạng (H, W), với giá trị là nhãn phân đoạn cho mỗi pixel.
+    Returns:
+        features: Danh sách các ma trận đặc trưng, mỗi ma trận có dạng (n_regions, feature_vector_size).
+    """
+    # Khởi tạo MobileNet
+    model = MobileNet(
+        weights="imagenet",
+        include_top=False,
+        input_shape=(image.shape[0], image.shape[1], 3),
     )
-    # Khởi tạo ImageDataGenerator để áp dụng tăng cường dữ liệu cho tập huấn luyện của fold hiện tại
-    train_datagen = ImageDataGenerator(
-        rotation_range=20,
-        width_shift_range=0.2,
-        height_shift_range=0.2,
-        shear_range=0.2,
-        zoom_range=0.2,
-        vertical_flip=True,
-        horizontal_flip=False,
-        fill_mode="nearest",
-    )
-    # Tạo ra dữ liệu augmented từ dữ liệu train
-    train_generator = train_datagen.flow(X_train, y_train, batch_size=BATCH_SIZE)
+    # Trích xuất đặc trưng cho mỗi vùng phân đoạn
+    features = []
+    for label in np.unique(segmentation):
+        region_mask = (segmentation == label).astype("float32")
+        region_image = image * region_mask[:, :, np.newaxis]
+        region_features = model.predict(region_image)
+        features.append(region_features)
+    return features
 
-    # ACO optimization for model training
-    def fitness_func(solution):
-        # Set model weights based on solution
-        model.set_weights(solution)
-        # Train the model
-        history = model.fit(
-            train_generator,
-            epochs=EPOCHS,
-            batch_size=BATCH_SIZE,
-            verbose=1,
-            callbacks=[checkpoint, metrics_logger],
-            validation_data=(X_val, y_val),
+
+if __name__ == "__main__":
+    # Đọc ảnh
+    image = tf.keras.preprocessing.image.load_img("image.jpg", target_size=(224, 224))
+    image = tf.keras.preprocessing.image.img_to_array(image)
+    image = tf.expand_dims(image, axis=0)
+
+    # Phân đoạn hình ảnh bằng ACO
+    segmentation = aco_image_segmentation(image)
+
+    # Trích xuất đặc trưng bằng MobileNet
+    features = extract_features(image, segmentation)
+
+    # Sử dụng các đặc trưng cho các nhiệm vụ downstream
+    # ...
+
+
+def train_test_split_with_segmentation(inputs, targets):
+    # Existing k-fold split logic
+    # ...
+    for fold_no, (train_indices, test_indices) in enumerate(
+        kfold.split(inputs, targets), 1
+    ):
+        X_train, X_val = inputs[train_indices], inputs[test_indices]
+        y_train, y_val = targets_one_hot[train_indices], targets_one_hot[test_indices]
+        # Segment training images using ACO
+        train_segmentations = aco_image_segmentation(inputs[train_indices])
+        # Reset model mỗi lần chạy fold mới
+        model = build_model()
+        model.build((None, *IMG_SIZE, 3))
+        model.summary()
+        # Tính toán confusion matrix cho tập train trước khi tăng cường
+        y_train_pred_before_augmentation = np.argmax(model.predict(X_train), axis=1)
+        y_train_true = np.argmax(y_train, axis=1)
+        confusion_matrix_train_before_augmentation = confusion_matrix(
+            y_train_true, y_train_pred_before_augmentation
         )
-        # Calculate validation loss
-        val_loss = history.history["val_loss"][-1]
-        return val_loss
+        print("Confusion matrix for train data before augmentation:")
+        print(confusion_matrix_train_before_augmentation)
+        # Khởi tạo MetricsLogger mới cho mỗi fold
+        metrics_logger = MetricsLogger(
+            f"metrics_MobileNet_v3_v3_A_tangcuong_fold_{fold_no}.log",
+            X_val,
+            y_val,
+            fold_no,
+            f"confusion_matrix_MobileNet_v3_v3_A_tangcuong",
+        )
+        # Segment validation and test images (conceptual)
+        val_segmentations = aco_image_segmentation(inputs[val_indices])  # Placeholder
+        test_segmentations = aco_image_segmentation(inputs[test_indices])  # Placeholder
 
-    # Initialize ACO optimizer
-    aco = ACO(
-        num_parameters=model.count_params(), fitness_function=fitness_func, **aco_params
-    )
+        # ... rest of the code within the loop (feature extraction, training, evaluation)
 
-    # Optimize model parameters using ACO
-    best_solution = aco.optimize()
-
-    # Set model weights to the best solution found by ACO
-    model.set_weights(best_solution)
-
-    # Evaluate the model on test data
-    scores = model.evaluate(
-        inputs[test_indices], targets_one_hot[test_indices], verbose=1
-    )
-    print(
-        f"Score for fold {fold_no}: {model.metrics_names[0]} of {scores[0]}; {model.metrics_names[1]} of {scores[1]*100}%"
-    )
-
-    # Calculate metrics for test data
-    y_pred = model.predict(inputs[test_indices])
-    y_pred = np.argmax(y_pred, axis=1)
-
-    # Save classification report
-    save_classification_report(
-        targets[test_indices],
-        y_pred,
-        class_names,
-        f"classification_report_MobileNet_ACO_CNN.txt",
-    )
+        # ... (use train_segmentations, val_segmentations, test_segmentations)

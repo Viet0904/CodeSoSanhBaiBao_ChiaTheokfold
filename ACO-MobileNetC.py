@@ -26,14 +26,18 @@ from sklearn.metrics import (
 )
 
 
-def preprocess_image(image_path, target_size=(224, 224)):
+def preprocess_image_aco(image_path):
+    # Đọc ảnh từ đường dẫn
     image = Image.open(image_path)
 
-    image = image.resize(target_size)
+    # Resize ảnh đến kích thước mong muốn
+    image = image.resize(IMG_SIZE)
 
+    # Chuyển đổi ảnh sang numpy array và chuẩn hóa giá trị pixel về khoảng [0, 1]
     image_array = np.array(image)
-
     image_array = image_array.astype("float32") / 255.0
+
+    # Trả về ảnh đã được tiền xử lý
     return image_array
 
 
@@ -56,8 +60,9 @@ for class_index, class_name in enumerate(class_names):
     class_dir = os.path.join(data_dir, class_name)
     for image_name in os.listdir(class_dir):
         image_path = os.path.join(class_dir, image_name)
-        inputs.append(preprocess_image(image_path))
+        inputs.append(preprocess_image_aco(image_path))  # Sử dụng preprocess_image_aco
         targets.append(class_index)
+
 
 inputs = np.array(inputs)
 targets = np.array(targets)
@@ -71,23 +76,23 @@ acc_per_fold = []
 loss_per_fold = []
 
 
-def build_model():
+def build_model(input_shape):
     base_model = MobileNet(
-        weights="imagenet", include_top=False, input_shape=(*IMG_SIZE, 3)
+        weights="imagenet", include_top=False, input_shape=input_shape
     )
 
     for layer in base_model.layers:
         layer.trainable = True
 
-        model = models.Sequential(
-            [
-                base_model,
-                layers.GlobalAveragePooling2D(),
-                layers.Dense(1024, activation="relu"),
-                layers.Dropout(0.3),
-                layers.Dense(NUM_CLASSES, activation="softmax"),
-            ]
-        )
+    model = models.Sequential(
+        [
+            base_model,
+            layers.GlobalAveragePooling2D(),
+            layers.Dense(1024, activation="relu"),
+            layers.Dropout(0.3),
+            layers.Dense(NUM_CLASSES, activation="softmax"),
+        ]
+    )
 
     model.compile(
         optimizer=Adam(learning_rate=0.0001),
@@ -102,6 +107,46 @@ def build_model():
     )
 
     return model
+
+
+def extract_features(image):
+    # Khởi tạo ma trận pheromone và visibility matrix
+    pheromone_matrix = np.ones((image.shape[1], image.shape[2])) * 0.01
+    visibility_matrix = np.ones((image.shape[1], image.shape[2]))
+    ant_count = 10
+    iteration_count = 10
+    # Thực hiện quá trình di chuyển của kiến
+    for iteration in range(iteration_count):
+        for ant in range(ant_count):
+            # Khởi tạo vị trí bắt đầu của kiến
+            current_position = [
+                np.random.randint(0, image.shape[1]),
+                np.random.randint(0, image.shape[2]),
+            ]
+            # Thực hiện di chuyển của kiến
+            for step in range(image.shape[1] * image.shape[2]):
+                # Tính toán xác suất di chuyển
+                transition_probabilities = (
+                    pheromone_matrix[current_position[0], current_position[1]]
+                    * visibility_matrix[current_position[0], current_position[1]]
+                )
+                transition_probabilities = transition_probabilities / np.sum(
+                    transition_probabilities
+                )
+                # Lựa chọn vị trí tiếp theo
+                next_position = np.unravel_index(
+                    np.random.choice(
+                        np.arange(image.shape[1] * image.shape[2]),
+                        p=transition_probabilities.ravel(),
+                    ),
+                    (image.shape[1], image.shape[2]),
+                )
+                # Cập nhật pheromone
+                pheromone_matrix[next_position[0], next_position[1]] += 1.0
+                # Cập nhật vị trí hiện tại
+                current_position = next_position
+    # Trả về vùng bị nhiễm bệnh
+    return pheromone_matrix
 
 
 # Chuyển đổi nhãn thành one-hot encoding
@@ -166,17 +211,26 @@ def save_classification_report(y_true, y_pred, class_names, file_path):
 for fold_no, (train_indices, test_indices) in enumerate(
     kfold.split(inputs, targets), 1
 ):
-    X_train, X_val = inputs[train_indices], inputs[test_indices]
-    y_train, y_val = targets_one_hot[train_indices], targets_one_hot[test_indices]
     # Reset model mỗi lần chạy fold mới
-    model = build_model()
+    # Sửa lại hàm build_model để chấp nhận kích thước đầu vào mới từ ACO
+    input_shape_aco = extracted_features.shape[
+        1:
+    ]  # Định dạng kích thước đầu vào từ ACO
+    model = build_model(input_shape_aco)
     model.build((None, *IMG_SIZE, 3))
     model.summary()
-    # Tính toán confusion matrix cho tập train trước khi tăng cường
-    y_train_pred_before_augmentation = np.argmax(model.predict(X_train), axis=1)
-    y_train_true = np.argmax(y_train, axis=1)
-    confusion_matrix_train_before_augmentation = confusion_matrix(
-        y_train_true, y_train_pred_before_augmentation
+    # Thực hiện thuật toán ACO để trích xuất đặc điểm từ ảnh
+    extracted_features = []
+    for image_path in list_of_image_paths:
+        image = preprocess_image_aco(image_path)  # Tiền xử lý ảnh
+        features = extract_features_aco(
+            image
+        )  # Trích xuất đặc điểm bằng thuật toán ACO
+        extracted_features.append(features)
+
+    extracted_features = np.array(extracted_features)
+    X_train, X_val, y_train, y_val = train_test_split(
+        extracted_features, targets_one_hot, test_size=0.2, random_state=42
     )
 
     # Khởi tạo MetricsLogger mới cho mỗi fold
@@ -199,14 +253,8 @@ for fold_no, (train_indices, test_indices) in enumerate(
         horizontal_flip=False,
         fill_mode="nearest",
     )
-    print(confusion_matrix_train_after_augmentation)
     # Tạo ra dữ liệu augmented từ dữ liệu train
     train_generator = train_datagen.flow(X_train, y_train, batch_size=BATCH_SIZE)
-    # Tính toán confusion matrix cho tập train sau khi tăng cường
-    y_train_pred_after_augmentation = np.argmax(model.predict(train_generator), axis=1)
-    confusion_matrix_train_after_augmentation = confusion_matrix(
-        y_train_true, y_train_pred_after_augmentation
-    )
 
     # Huấn luyện mô hình với dữ liệu tăng cường của fold hiện tại
     history = model.fit(
