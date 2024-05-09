@@ -2,7 +2,7 @@ import os
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.utils import to_categorical
-from tensorflow.keras.callbacks import Callback
+from tensorflow.keras.callbacks import Callback, ModelCheckpoint
 from tensorflow.keras.applications import MobileNet
 from tensorflow.keras import models, layers, optimizers
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
@@ -50,7 +50,9 @@ class Ant:
             probability = (q * pheromone_intensity) / (
                 (q * pheromone_intensity) + (1 - q) * image_intensity
             )
-            if np.random.random() < probability.item():
+            # Choose a random element from probability array
+            random_index = np.random.randint(len(probability))
+            if np.random.random() < probability[random_index]:
                 break
             self.position = new_position
             self.path.append(self.position)
@@ -82,7 +84,9 @@ def aco_image_segmentation(image):
         for ant in ants:
             ant.move(image, pheromone, q)
     for ant in ants:
-        pheromone = pheromone * (1 - pheromone_decay) + ant.pheromone_trail
+        ant_pheromone_trail_expanded = np.expand_dims(ant.pheromone_trail, axis=-1)
+        pheromone = pheromone * (1 - pheromone_decay) + ant_pheromone_trail_expanded
+
     segmentation = np.zeros_like(image)
     for ant in ants:
         for i, j in ant.path:
@@ -160,18 +164,6 @@ base_model = MobileNet(
 for layer in base_model.layers:
     layer.trainable = True
 
-# Define data augmentation
-train_datagen = ImageDataGenerator(
-    rotation_range=20,
-    width_shift_range=0.2,
-    height_shift_range=0.2,
-    shear_range=0.2,
-    zoom_range=0.2,
-    vertical_flip=True,
-    horizontal_flip=False,
-    fill_mode="nearest",
-)
-
 
 def build_model():
     model = models.Sequential(
@@ -217,11 +209,26 @@ def train_test_split_with_segmentation(inputs, targets, kfold, num_classes):
         model.compile(
             optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"]
         )
+        # Define data augmentation
+        train_datagen = ImageDataGenerator(
+            rotation_range=20,
+            width_shift_range=0.2,
+            height_shift_range=0.2,
+            shear_range=0.2,
+            zoom_range=0.2,
+            vertical_flip=True,
+            horizontal_flip=False,
+            fill_mode="nearest",
+        )
+        # Tạo ra dữ liệu augmented từ dữ liệu train
+        train_generator = train_datagen.flow(
+            features_train, y_train_one_hot, batch_size=BATCH_SIZE
+        )
 
         # Fit model with data augmentation
         history = model.fit(
-            train_datagen.flow(features_train, y_train_one_hot, batch_size=32),
-            steps_per_epoch=len(features_train) // 32,
+            train_generator,
+            verbose=1,
             epochs=100,
             validation_data=(features_test, y_test_one_hot),
             callbacks=[MetricsLogger(f"metrics_fold_{fold_no}.log", fold_no)],
