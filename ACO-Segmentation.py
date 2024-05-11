@@ -120,7 +120,7 @@ dataset_path = "Guava Dataset"
 # Đọc tên các nhãn từ tên thư mục con
 labels = os.listdir(dataset_path)
 # Đường dẫn đến thư mục chứa nhãn "Disease_Free"
-label_path = os.path.join(dataset_path, "Phytopthora")
+label_path = os.path.join(dataset_path, "Red_rust")
 # Đối số cho thuật toán ACO
 num_ants = 10
 max_iterations = 10
