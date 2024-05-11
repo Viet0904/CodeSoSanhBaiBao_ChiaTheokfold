@@ -29,7 +29,7 @@ class AntColonySegmentation:
         )
         ant["path"].append(current_position)
 
-        for _ in range(50000):
+        for _ in range(10000):
             neighbors = self.get_neighbors(current_position)
             probabilities = self.calculate_probabilities(
                 current_position, neighbors, ant["path"]
@@ -114,39 +114,41 @@ class AntColonySegmentation:
         return segmentation_result
 
 
-# Đường dẫn đến thư mục chứa Guava Dataset
-dataset_path = "Guava Dataset"
-
-# Đọc tên các nhãn từ tên thư mục con
-labels = os.listdir(dataset_path)
-# Đường dẫn đến thư mục chứa nhãn "Disease_Free"
-label_path = os.path.join(dataset_path, "Red_rust")
 # Đối số cho thuật toán ACO
-num_ants = 10
-max_iterations = 10
+num_ants = 5
+max_iterations = 2
 alpha = 1.0
 beta = 2.0
 rho = 0.5
 
+# Đường dẫn đến thư mục chứa Guava Dataset
+dataset_path = "Guava Dataset"
+
+# Đường dẫn đến thư mục chứa nhãn "Red_rust"
+label_path = os.path.join(dataset_path, "Phytopthora")
+
 # Kiểm tra xem thư mục tồn tại hay không
 if os.path.isdir(label_path):
-    # Lặp qua từng hình ảnh trong nhãn "Disease_Free"
+    # Lặp qua tất cả các tệp hình ảnh trong thư mục
     for image_file in os.listdir(label_path):
-        image_path = os.path.join(label_path, image_file)
-        if os.path.isfile(image_path):
-            # Đọc ảnh
-            image = cv2.imread(image_path)
-            # Tiền xử lý ảnh nếu cần
-            # Ví dụ: chuyển đổi sang ảnh grayscale
-            image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-            # Chạy thuật toán ACO trên ảnh
-            acs = AntColonySegmentation(
-                image_gray, num_ants, max_iterations, alpha, beta, rho
-            )
-            segmented_image = acs.run()
-            # Lưu trữ kết quả
-            result_path = os.path.join("segmented_images", "Disease_Free", image_file)
-            os.makedirs(os.path.dirname(result_path), exist_ok=True)
-            cv2.imwrite(result_path, segmented_image)
+        # Kiểm tra xem tệp có phải là tệp hình ảnh hay không
+        if image_file.lower().endswith((".png", ".jpg", ".jpeg")):
+            image_path = os.path.join(label_path, image_file)
+            # Kiểm tra xem tệp có tồn tại không
+            if os.path.isfile(image_path):
+                # Đọc ảnh
+                image = cv2.imread(image_path)
+                # Tiền xử lý ảnh: Áp dụng median filter với kernel kích thước 5x5
+                image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+                image_filtered = cv2.medianBlur(image_gray, 5)
+                # Chạy thuật toán ACO trên ảnh đã được xử lý
+                acs = AntColonySegmentation(
+                    image_filtered, num_ants, max_iterations, alpha, beta, rho
+                )
+                segmented_image = acs.run()
+                # Lưu trữ kết quả
+                result_path = os.path.join("segmented_images", "Red_rust", image_file)
+                os.makedirs(os.path.dirname(result_path), exist_ok=True)
+                cv2.imwrite(result_path, segmented_image)
 else:
-    print("Thư mục nhãn 'Disease_Free' không tồn tại.")
+    print("Thư mục nhãn 'Red_rust' không tồn tại.")

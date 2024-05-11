@@ -29,7 +29,7 @@ class AntColonySegmentation:
         )
         ant["path"].append(current_position)
 
-        for _ in range(50000):
+        for _ in range(10000):
             neighbors = self.get_neighbors(current_position)
             probabilities = self.calculate_probabilities(
                 current_position, neighbors, ant["path"]
@@ -115,11 +115,7 @@ class AntColonySegmentation:
 
 
 # Đối số cho thuật toán ACO
-num_ants = 10
-max_iterations = 1
-alpha = 1.0
-beta = 2.0
-rho = 0.5
+
 
 # Đường dẫn đến thư mục chứa Guava Dataset
 dataset_path = "Guava Dataset"
@@ -130,26 +126,25 @@ label_path = os.path.join(dataset_path, "Red_rust")
 # Kiểm tra xem thư mục tồn tại hay không
 if os.path.isdir(label_path):
     # Chọn một ảnh trong thư mục
-    image_files = os.listdir(label_path)
-    image_file = random.choice(image_files)  # Chọn ngẫu nhiên một ảnh
+    image_file = "Red Rust(1).jpg"  # Chọn ảnh cụ thể
     image_path = os.path.join(label_path, image_file)
 
     # Kiểm tra xem tệp có tồn tại không
     if os.path.isfile(image_path):
         # Đọc ảnh
         image = cv2.imread(image_path)
-        # Tiền xử lý ảnh nếu cần
-        # Ví dụ: chuyển đổi sang ảnh grayscale
+        # Tiền xử lý ảnh: Áp dụng median filter với kernel kích thước 5x5
         image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        image_filtered = cv2.medianBlur(image_gray, 5)
         # Đối số cho thuật toán ACO
-        num_ants = 10
-        max_iterations = 10
+        num_ants = 5
+        max_iterations = 2
         alpha = 1.0
         beta = 2.0
         rho = 0.5
-        # Chạy thuật toán ACO trên ảnh
+        # Chạy thuật toán ACO trên ảnh đã được xử lý
         acs = AntColonySegmentation(
-            image_gray, num_ants, max_iterations, alpha, beta, rho
+            image_filtered, num_ants, max_iterations, alpha, beta, rho
         )
         segmented_image = acs.run()
         # Lưu trữ kết quả
