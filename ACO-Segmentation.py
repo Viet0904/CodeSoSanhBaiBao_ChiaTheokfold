@@ -123,7 +123,7 @@ labels = os.listdir(dataset_path)
 label_path = os.path.join(dataset_path, "Phytopthora")
 # Đối số cho thuật toán ACO
 num_ants = 10
-max_iterations = 100
+max_iterations = 10
 alpha = 1.0
 beta = 2.0
 rho = 0.5
