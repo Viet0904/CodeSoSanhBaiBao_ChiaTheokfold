@@ -125,7 +125,7 @@ rho = 0.5
 dataset_path = "Guava Dataset"
 
 # Đường dẫn đến thư mục chứa nhãn "Red_rust"
-label_path = os.path.join(dataset_path, "Scab")
+label_path = os.path.join(dataset_path, "Phytopthora")
 
 # Kiểm tra xem thư mục tồn tại hay không
 if os.path.isdir(label_path):
