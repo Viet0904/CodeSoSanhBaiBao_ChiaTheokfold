@@ -1,24 +1,24 @@
-import os
 import numpy as np
 import cv2
+import os
 import random
 
 
-class AntColonySegmentation:
-    def __init__(self, image, num_ants, max_iterations, alpha, beta, rho):
+class AntColonyColorSegmentation:
+    def __init__(self, image, num_ants, max_iterations, alpha, beta, rho, sigma):
         self.image = image
         self.num_ants = num_ants
         self.max_iterations = max_iterations
         self.alpha = alpha  # pheromone importance
-        self.beta = beta  # visibility (intensity) importance
+        self.beta = beta  # visibility (color similarity) importance
         self.rho = rho  # pheromone evaporation rate
-
-        self.pheromones = np.ones([self.image.shape[0], self.image.shape[1]])
+        self.sigma = sigma  # parameter for color similarity calculation
+        self.pheromones = np.ones_like(self.image)
 
     def initialize_ants(self):
         ants = []
         for _ in range(self.num_ants):
-            ant = {"path": [], "intensity_sum": 0.0}
+            ant = {"path": [], "color_sum": np.zeros_like(self.image)}
             ants.append(ant)
         return ants
 
@@ -35,77 +35,72 @@ class AntColonySegmentation:
                 current_position, neighbors, ant["path"]
             )
 
-            pom = [_ for _ in range(len(neighbors))]
-            next_position = np.random.choice(pom, p=probabilities)
-            next_position = neighbors[next_position]
+            next_position_index = np.random.choice(
+                len(neighbors), p=np.ravel(probabilities) / np.sum(probabilities)
+            ).item()
+
+            next_position = neighbors[next_position_index]
 
             ant["path"].append(next_position)
             current_position = next_position
 
     def get_neighbors(self, position):
-        height, width = self.image.shape  # Loại bỏ trích xuất số kênh màu
+        height, width = self.image.shape[:2]
         row, col = position
         neighbors = []
         neighbors_offsets = [(0, 1), (0, -1), (1, 0), (-1, 0)]
 
         for offset_row, offset_col in neighbors_offsets:
             new_row, new_col = row + offset_row, col + offset_col
-            if (
-                0 <= new_row < height and 0 <= new_col < width
-            ):  # Sử dụng height và width ở đây
+            if 0 <= new_row < height and 0 <= new_col < width:
                 neighbors.append((new_row, new_col))
 
         return neighbors
 
     def calculate_probabilities(self, current_position, neighbors, path):
-        intensity = self.image[current_position]
+        color_current = self.image[current_position]
         probabilities = []
-
         for neighbor in neighbors:
             if neighbor not in path:
-                neighbor_intensity = self.image[neighbor]
+                color_neighbor = self.image[neighbor]
                 pheromone = self.pheromones[neighbor]
-                if neighbor_intensity > intensity:
-                    visibility = 0.95
-                else:
-                    visibility = 0.05
-                probability = (pheromone**self.alpha) * (visibility**self.beta)
+                color_similarity = self.calculate_color_similarity(
+                    color_current, color_neighbor
+                )
+                probability = (pheromone**self.alpha) * (color_similarity**self.beta)
                 probabilities.append(probability)
-            else:
-                probabilities.append(0.0)
+
+        if not probabilities:  # Check if probabilities list is empty
+            # Handle empty probabilities (e.g., choose random neighbor)
+            return np.random.choice(neighbors)  # Return from within the function
 
         probabilities = np.array(probabilities)
-        if np.any(np.isnan(probabilities)):
-            probabilities[np.isnan(probabilities)] = 0.1
-        if np.any(np.isinf(probabilities)):
-            probabilities[np.isinf(probabilities)] = 0.9
-        total_probability = sum(probabilities)
+        total_probability = np.sum(probabilities)
         if total_probability > 0:
             probabilities /= total_probability
-        else:
-            probabilities = np.ones(len(neighbors)) / len(neighbors)
-
+        probabilities = np.ravel(probabilities)  # Convert to 1-dimensional array
         return probabilities
+
+    def calculate_color_similarity(self, color1, color2):
+        return np.exp(-np.linalg.norm(color1 - color2) / (2 * self.sigma**2))
 
     def update_pheromones(self, ants):
         self.pheromones *= 1 - self.rho
         for ant in ants:
             for position in ant["path"]:
-                self.pheromones[position] += 1.0 / ant["intensity_sum"]
+                self.pheromones[position] += 1.0 / np.sum(ant["color_sum"])
 
     def run(self):
         ants = self.initialize_ants()
         for iteration in range(self.max_iterations):
-
             for ant in ants:
                 self.construct_segment(ant)
-                ant["intensity_sum"] = sum(
+                ant["color_sum"] = np.sum(
                     self.image[position] for position in ant["path"]
                 )
-
             self.update_pheromones(ants)
 
-        best_ant = max(ants, key=lambda ant: ant["intensity_sum"])
+        best_ant = max(ants, key=lambda ant: np.sum(ant["color_sum"]))
         segmentation_result = np.zeros_like(self.image)
 
         for position in best_ant["path"]:
@@ -141,9 +136,10 @@ if os.path.isdir(label_path):
         alpha = 1.0
         beta = 2.0
         rho = 0.5
+        sigma = 10.0  # Giá trị sigma cho tính toán tương đồng màu sắc
         # Chạy thuật toán ACO trên ảnh đã được xử lý
-        acs = AntColonySegmentation(
-            image_filtered, num_ants, max_iterations, alpha, beta, rho
+        acs = AntColonyColorSegmentation(
+            image_filtered, num_ants, max_iterations, alpha, beta, rho, sigma
         )
         segmented_image = acs.run()
         # Lưu trữ kết quả

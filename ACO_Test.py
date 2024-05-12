@@ -201,41 +201,30 @@ class AntColonySegmentation:
         return segmentation_result
 
 
-# Đối số cho thuật toán ACO
+# Đường dẫn đến thư mục để lưu ảnh đã xử lý
+output_folder = "processed_images"
+os.makedirs(output_folder, exist_ok=True)
+
+image_path = "Guava Dataset/Red_rust/Red Rust(1).jpg"
+image = cv2.imread(image_path)
+
+# Áp dụng median filter
+median_filtered_image = cv2.medianBlur(image, 5)
 num_ants = 20
 max_iterations = 20
 alpha = 0.9
 beta = 0.9
 rho = 0.1
 
-# Đường dẫn đến thư mục chứa Guava Dataset
-dataset_path = "Guava Dataset"
+aco_segmentation = AntColonySegmentation(
+    median_filtered_image, num_ants, max_iterations, alpha, beta, rho
+)
+result = aco_segmentation.run()
 
-# Đường dẫn đến thư mục chứa nhãn "Red_rust"
-label_path = os.path.join(dataset_path, "Disease_Free")
+# Tạo tên file đầu ra dựa trên tên file gốc
+output_filename = os.path.join(output_folder, os.path.basename(image_path))
 
-# Kiểm tra xem thư mục tồn tại hay không
-if os.path.isdir(label_path):
-    # Lặp qua tất cả các tệp hình ảnh trong thư mục
-    for image_file in os.listdir(label_path):
-        # Kiểm tra xem tệp có phải là tệp hình ảnh hay không
-        if image_file.lower().endswith((".png", ".jpg", ".jpeg")):
-            image_path = os.path.join(label_path, image_file)
-            # Kiểm tra xem tệp có tồn tại không
-            if os.path.isfile(image_path):
-                # Đọc ảnh
-                image = cv2.imread(image_path)
-                image_filtered = cv2.medianBlur(image, 5)
-                # Chạy thuật toán ACO trên ảnh đã được xử lý
-                acs = AntColonySegmentation(
-                    image_filtered, num_ants, max_iterations, alpha, beta, rho
-                )
-                segmented_image = acs.run()
-                # Lưu trữ kết quả
-                result_path = os.path.join(
-                    "segmented_images", "Disease_Free", image_file
-                )
-                os.makedirs(os.path.dirname(result_path), exist_ok=True)
-                cv2.imwrite(result_path, segmented_image)
-else:
-    print("Thư mục nhãn 'Disease_Free' không tồn tại.")
+# Lưu ảnh đã xử lý vào thư mục đầu ra
+cv2.imwrite(output_filename, result)
+
+print("Đã lưu ảnh đã xử lý vào:", output_filename)
