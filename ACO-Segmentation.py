@@ -138,12 +138,9 @@ if os.path.isdir(label_path):
             if os.path.isfile(image_path):
                 # Đọc ảnh
                 image = cv2.imread(image_path)
-                # Tiền xử lý ảnh: Áp dụng median filter với kernel kích thước 5x5
-                image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-                image_filtered = cv2.medianBlur(image_gray, 5)
                 # Chạy thuật toán ACO trên ảnh đã được xử lý
                 acs = AntColonySegmentation(
-                    image_filtered, num_ants, max_iterations, alpha, beta, rho
+                    image, num_ants, max_iterations, alpha, beta, rho
                 )
                 segmented_image = acs.run()
                 # Lưu trữ kết quả
