@@ -212,7 +212,7 @@ rho = 0.1
 dataset_path = "Guava Dataset"
 
 # Đường dẫn đến thư mục chứa nhãn "Red_rust"
-label_path = os.path.join(dataset_path, "Scab")
+label_path = os.path.join(dataset_path, "Styler_Root")
 
 # Kiểm tra xem thư mục tồn tại hay không
 if os.path.isdir(label_path):
@@ -232,8 +232,10 @@ if os.path.isdir(label_path):
                 )
                 segmented_image = acs.run()
                 # Lưu trữ kết quả
-                result_path = os.path.join("segmented_images", "Scab", image_file)
+                result_path = os.path.join(
+                    "segmented_images", "Styler_Root", image_file
+                )
                 os.makedirs(os.path.dirname(result_path), exist_ok=True)
                 cv2.imwrite(result_path, segmented_image)
 else:
-    print("Thư mục nhãn 'Scab' không tồn tại.")
+    print("Thư mục nhãn 'Styler_Root' không tồn tại.")
