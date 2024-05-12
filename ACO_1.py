@@ -134,8 +134,7 @@ if os.path.isdir(label_path):
         # Đọc ảnh
         image = cv2.imread(image_path)
         # Tiền xử lý ảnh: Áp dụng median filter với kernel kích thước 5x5
-        image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        image_filtered = cv2.medianBlur(image_gray, 5)
+        image_filtered = cv2.medianBlur(image, 5)
         # Đối số cho thuật toán ACO
         num_ants = 5
         max_iterations = 2

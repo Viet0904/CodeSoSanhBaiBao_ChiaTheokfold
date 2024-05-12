@@ -138,9 +138,10 @@ if os.path.isdir(label_path):
             if os.path.isfile(image_path):
                 # Đọc ảnh
                 image = cv2.imread(image_path)
+                image_filtered = cv2.medianBlur(image, 5)
                 # Chạy thuật toán ACO trên ảnh đã được xử lý
                 acs = AntColonySegmentation(
-                    image, num_ants, max_iterations, alpha, beta, rho
+                    image_filtered, num_ants, max_iterations, alpha, beta, rho
                 )
                 segmented_image = acs.run()
                 # Lưu trữ kết quả
