@@ -212,7 +212,7 @@ rho = 0.1
 dataset_path = "Guava Dataset"
 
 # Đường dẫn đến thư mục chứa nhãn "Red_rust"
-label_path = os.path.join(dataset_path, "Disease_Free")
+label_path = os.path.join(dataset_path, "Phytopthora")
 
 # Kiểm tra xem thư mục tồn tại hay không
 if os.path.isdir(label_path):
@@ -233,9 +233,9 @@ if os.path.isdir(label_path):
                 segmented_image = acs.run()
                 # Lưu trữ kết quả
                 result_path = os.path.join(
-                    "segmented_images", "Disease_Free", image_file
+                    "segmented_images", "Phytopthora", image_file
                 )
                 os.makedirs(os.path.dirname(result_path), exist_ok=True)
                 cv2.imwrite(result_path, segmented_image)
 else:
-    print("Thư mục nhãn 'Disease_Free' không tồn tại.")
+    print("Thư mục nhãn 'Phytopthora' không tồn tại.")
