@@ -202,8 +202,8 @@ class AntColonySegmentation:
 
 
 # Đối số cho thuật toán ACO
-num_ants = 10
-max_iterations = 3
+num_ants = 5
+max_iterations = 2
 alpha = 0.9
 beta = 0.9
 rho = 0.1
