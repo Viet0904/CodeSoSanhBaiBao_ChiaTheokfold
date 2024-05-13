@@ -203,7 +203,7 @@ class AntColonySegmentation:
 
 # Đối số cho thuật toán ACO
 num_ants = 20
-max_iterations = 20
+max_iterations = 5
 alpha = 0.9
 beta = 0.9
 rho = 0.1
@@ -212,7 +212,7 @@ rho = 0.1
 dataset_path = "Guava Dataset"
 
 # Đường dẫn đến thư mục chứa nhãn "Red_rust"
-label_path = os.path.join(dataset_path, "Styler_Root")
+label_path = os.path.join(dataset_path, "Disease_Free")
 
 # Kiểm tra xem thư mục tồn tại hay không
 if os.path.isdir(label_path):
