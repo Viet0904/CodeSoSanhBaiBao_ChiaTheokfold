@@ -203,10 +203,10 @@ class AntColonySegmentation:
 
 
 # Thư mục chứa ảnh đầu vào
-input_folder = "Guava Dataset/Disease_Free"
+input_folder = "Guava Dataset/Red_rust"
 
 # Thư mục để lưu ảnh đã xử lý
-output_folder = "Disease_Free"
+output_folder = "Red_rust"
 os.makedirs(output_folder, exist_ok=True)
 
 # Định nghĩa các tham số cho thuật toán ACO
