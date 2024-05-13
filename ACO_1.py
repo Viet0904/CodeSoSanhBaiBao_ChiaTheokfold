@@ -116,12 +116,12 @@ class AntColonyColorSegmentation:
 dataset_path = "Guava Dataset"
 
 # Đường dẫn đến thư mục chứa nhãn "Red_rust"
-label_path = os.path.join(dataset_path, "Red_rust")
+label_path = os.path.join(dataset_path, "Disease_Free")
 
 # Kiểm tra xem thư mục tồn tại hay không
 if os.path.isdir(label_path):
     # Chọn một ảnh trong thư mục
-    image_file = "Red Rust(1).jpg"  # Chọn ảnh cụ thể
+    image_file = "Guava Dataset/Disease_Free/Disease Free (1).jpg"  # Chọn ảnh cụ thể
     image_path = os.path.join(label_path, image_file)
 
     # Kiểm tra xem tệp có tồn tại không

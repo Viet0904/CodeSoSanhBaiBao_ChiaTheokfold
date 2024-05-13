@@ -1,8 +1,9 @@
+import os
+import cv2
+import multiprocessing
 import numpy as np
 import random
 import copy
-import cv2
-import os
 
 
 class AntColonySegmentation:
@@ -209,34 +210,44 @@ output_folder = "Disease_Free"
 os.makedirs(output_folder, exist_ok=True)
 
 # Định nghĩa các tham số cho thuật toán ACO
-num_ants = 5
-max_iterations = 1
-alpha = 1.0
-beta = 2.0
-rho = 0.5
+num_ants = 20
+max_iterations = 20
+alpha = 0.9
+beta = 0.9
+rho = 0.1
 
-# Lặp qua tất cả các tệp trong thư mục đầu vào
-for filename in os.listdir(input_folder):
-    if filename.endswith(".jpg") or filename.endswith(
-        ".png"
-    ):  # Chỉ xử lý các tệp hình ảnh
-        # Đọc hình ảnh
-        image_path = os.path.join(input_folder, filename)
-        image = cv2.imread(image_path)
 
-        # Áp dụng median filter
-        median_filtered_image = cv2.medianBlur(image, 5)
+# Hàm xử lý ảnh
+def process_image(image_path):
+    # Đọc hình ảnh
+    image = cv2.imread(image_path)
 
-        # Khởi tạo và chạy thuật toán phân đoạn ACO
-        aco_segmentation = AntColonySegmentation(
-            median_filtered_image, num_ants, max_iterations, alpha, beta, rho
-        )
-        result = aco_segmentation.run()
+    # Áp dụng median filter
+    median_filtered_image = cv2.medianBlur(image, 5)
 
-        # Tạo tên file đầu ra dựa trên tên file gốc
-        output_filename = os.path.join(output_folder, filename)
+    # Khởi tạo và chạy thuật toán phân đoạn ACO
+    aco_segmentation = AntColonySegmentation(
+        median_filtered_image, num_ants, max_iterations, alpha, beta, rho
+    )
+    result = aco_segmentation.run()
 
-        # Lưu kết quả phân đoạn vào thư mục đầu ra
-        cv2.imwrite(output_filename, result)
+    # Tạo tên file đầu ra dựa trên tên file gốc
+    output_filename = os.path.join(output_folder, os.path.basename(image_path))
 
-        print("Đã xử lý và lưu ảnh", filename, "vào:", output_filename)
+    # Lưu kết quả phân đoạn vào thư mục đầu ra
+    cv2.imwrite(output_filename, result)
+
+    print("Đã xử lý và lưu ảnh", os.path.basename(image_path), "vào:", output_filename)
+
+
+if __name__ == "__main__":
+    # Lấy danh sách các tệp hình ảnh trong thư mục đầu vào
+    image_files = [
+        os.path.join(input_folder, filename)
+        for filename in os.listdir(input_folder)
+        if filename.endswith(".jpg") or filename.endswith(".png")
+    ]
+
+    # Sử dụng multiprocessing để xử lý nhiều hình ảnh đồng thời
+    with multiprocessing.Pool() as pool:
+        pool.map(process_image, image_files)
