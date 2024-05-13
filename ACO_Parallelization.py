@@ -210,8 +210,8 @@ output_folder = "Disease_Free"
 os.makedirs(output_folder, exist_ok=True)
 
 # Định nghĩa các tham số cho thuật toán ACO
-num_ants = 10
-max_iterations = 10
+num_ants = 5
+max_iterations = 1
 alpha = 0.9
 beta = 0.9
 rho = 0.1
