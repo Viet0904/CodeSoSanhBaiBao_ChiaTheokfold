@@ -210,20 +210,24 @@ output_folder = "Disease_Free"
 os.makedirs(output_folder, exist_ok=True)
 
 # Định nghĩa các tham số cho thuật toán ACO
-num_ants = 20
-max_iterations = 20
+num_ants = 5
+max_iterations = 1
 alpha = 0.9
 beta = 0.9
 rho = 0.1
+
+# Định nghĩa kích thước mới cho ảnh
+new_size = (224, 224)
 
 
 # Hàm xử lý ảnh
 def process_image(image_path):
     # Đọc hình ảnh
     image = cv2.imread(image_path)
-
+    # Chuyển đổi kích thước ảnh
+    resized_image = cv2.resize(image, new_size)
     # Áp dụng median filter
-    median_filtered_image = cv2.medianBlur(image, 5)
+    median_filtered_image = cv2.medianBlur(resized_image, 5)
 
     # Khởi tạo và chạy thuật toán phân đoạn ACO
     aco_segmentation = AntColonySegmentation(

@@ -205,7 +205,7 @@ class AntColonySegmentation:
 output_folder = "processed_images"
 os.makedirs(output_folder, exist_ok=True)
 
-image_path = "Guava Dataset/Red_rust/Red Rust(1).jpg"
+image_path = "Guava Dataset/Disease_Free/Disease Free (1).jpg"
 image = cv2.imread(image_path)
 
 # Áp dụng median filter
