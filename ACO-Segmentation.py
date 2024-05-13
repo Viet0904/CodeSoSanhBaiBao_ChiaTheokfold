@@ -201,41 +201,42 @@ class AntColonySegmentation:
         return segmentation_result
 
 
-# Đối số cho thuật toán ACO
-num_ants = 5
-max_iterations = 2
+# Thư mục chứa ảnh đầu vào
+input_folder = "Guava Dataset/Disease_Free"
+
+# Thư mục để lưu ảnh đã xử lý
+output_folder = "Disease_Free"
+os.makedirs(output_folder, exist_ok=True)
+
+# Định nghĩa các tham số cho thuật toán ACO
+num_ants = 10
+max_iterations = 1
 alpha = 0.9
 beta = 0.9
 rho = 0.1
 
-# Đường dẫn đến thư mục chứa Guava Dataset
-dataset_path = "Guava Dataset"
+# Lặp qua tất cả các tệp trong thư mục đầu vào
+for filename in os.listdir(input_folder):
+    if filename.endswith(".jpg") or filename.endswith(
+        ".png"
+    ):  # Chỉ xử lý các tệp hình ảnh
+        # Đọc hình ảnh
+        image_path = os.path.join(input_folder, filename)
+        image = cv2.imread(image_path)
 
-# Đường dẫn đến thư mục chứa nhãn "Red_rust"
-label_path = os.path.join(dataset_path, "Disease_Free")
+        # Áp dụng median filter
+        median_filtered_image = cv2.medianBlur(image, 5)
 
-# Kiểm tra xem thư mục tồn tại hay không
-if os.path.isdir(label_path):
-    # Lặp qua tất cả các tệp hình ảnh trong thư mục
-    for image_file in os.listdir(label_path):
-        # Kiểm tra xem tệp có phải là tệp hình ảnh hay không
-        if image_file.lower().endswith((".png", ".jpg", ".jpeg")):
-            image_path = os.path.join(label_path, image_file)
-            # Kiểm tra xem tệp có tồn tại không
-            if os.path.isfile(image_path):
-                # Đọc ảnh
-                image = cv2.imread(image_path)
-                image_filtered = cv2.medianBlur(image, 5)
-                # Chạy thuật toán ACO trên ảnh đã được xử lý
-                acs = AntColonySegmentation(
-                    image_filtered, num_ants, max_iterations, alpha, beta, rho
-                )
-                segmented_image = acs.run()
-                # Lưu trữ kết quả
-                result_path = os.path.join(
-                    "segmented_images", "Styler_Root", image_file
-                )
-                os.makedirs(os.path.dirname(result_path), exist_ok=True)
-                cv2.imwrite(result_path, segmented_image)
-else:
-    print("Thư mục nhãn 'Styler_Root' không tồn tại.")
+        # Khởi tạo và chạy thuật toán phân đoạn ACO
+        aco_segmentation = AntColonySegmentation(
+            median_filtered_image, num_ants, max_iterations, alpha, beta, rho
+        )
+        result = aco_segmentation.run()
+
+        # Tạo tên file đầu ra dựa trên tên file gốc
+        output_filename = os.path.join(output_folder, filename)
+
+        # Lưu kết quả phân đoạn vào thư mục đầu ra
+        cv2.imwrite(output_filename, result)
+
+        print("Đã xử lý và lưu ảnh", filename, "vào:", output_filename)
