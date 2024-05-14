@@ -33,7 +33,7 @@ def update_pheromone(pheromone, ants_paths, decay=0.1, Q=100):
 
 # Thuật toán ACO
 def ACO_segmentation(
-    image, num_ants=50, num_iterations=100, alpha=1, beta=2, decay=0.1, Q=100
+    image, num_ants=10, num_iterations=10, alpha=1, beta=2, decay=0.1, Q=10
 ):
     pheromone, heuristic = initialize_pheromone_and_heuristic(image)
     rows, cols, _ = image.shape
