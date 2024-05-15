@@ -35,53 +35,26 @@ class AntColonySegmentation:
         )
         ant["path"].append(current_position)
 
-        briter = 0
-        b = 0
-        self.green_found = True
-        while self.green_found:
-            briter += 1
+        while True:
             neighbors = self.get_neighbors(current_position)
             probabilities = self.calculate_probabilities(
                 current_position, neighbors, ant
             )
 
-            i = 2
-            length = len(ant["path"])
-            while sum(probabilities) == 0 and i <= length:
-                current_position = ant["path"][-i]
-                neighbors = self.get_neighbors(current_position)
-                probabilities = self.calculate_probabilities(
-                    current_position, neighbors, ant
-                )
-                i += 1
-
-            if i == length and length > 2:
-                self.green_found = False
-                break
-
-            if sum(probabilities) == 0:
-                self.green_found = False
-                break
-
-            pom = [_ for _ in range(len(neighbors))]
-            next_position = np.random.choice(pom, p=probabilities)
+            # Choose the next position based on probabilities
+            next_position = np.random.choice(range(len(neighbors)), p=probabilities)
             next_position = neighbors[next_position]
 
             if (
-                self.image[next_position][2] < self.image[next_position][1]
-                or self.image[next_position][2] < self.image[next_position][0]
-            ):  # Thay đổi điều kiện để kiểm tra màu đỏ
-                b += 1
-            else:
-                b = 0
-
-            if b == 50:
-                self.green_found = False
-                break
-
-            if next_position not in ant["path"]:
+                self.image[next_position][2] <= self.image[next_position][1]
+                or self.image[next_position][2] <= self.image[next_position][0]
+            ):
+                # If the pixel is not red, move to the next position
                 ant["path"].append(next_position)
                 current_position = next_position
+            else:
+                # If the pixel is red, stop moving
+                break
 
     def get_neighbors(self, position):
         height, width, _ = self.image.shape
@@ -112,6 +85,7 @@ class AntColonySegmentation:
         intensity = self.image[current_position][1]
         probabilities = []
 
+        total_probability = 0  # Initialize total probability
         for neighbor in neighbors:
             attractiveness = self.calc_attractiveness(neighbor)
             pheromone = self.pheromones[neighbor]
@@ -119,10 +93,14 @@ class AntColonySegmentation:
             if neighbor in ant["path"]:
                 probability = 0
             probabilities.append(probability)
+            total_probability += probability  # Sum up probabilities
 
-        total_probability = sum(probabilities)
-        if total_probability > 0:
-            probabilities /= total_probability
+        if total_probability == 0:
+            # If all probabilities are 0, assign equal probabilities to all neighbors
+            probabilities = [1 / len(neighbors)] * len(neighbors)
+        else:
+            # Normalize probabilities if total probability is greater than 0
+            probabilities = [prob / total_probability for prob in probabilities]
 
         return probabilities
 
@@ -146,34 +124,29 @@ class AntColonySegmentation:
         ants = self.initialize_ants()
         best_ant = None
         segmentation_result = np.zeros_like(self.image)
-        iter = 0
 
         for iteration in range(self.max_iterations):
-            iter += 1
             self.clear_ant_paths(ants)
             for ant in ants:
                 self.construct_segment(ant)
-                ant["intensity_sum"] = sum(
-                    (
-                        self.image[position][2] > self.image[position][1]
-                        and self.image[position][2] > self.image[position][0]
-                    )
-                    for position in ant["path"]
-                )
 
-            self.update_pheromones(ants)
-
-            current_best_ant = max(ants, key=lambda ant: ant["intensity_sum"])
-            if (
-                best_ant is None
-                or current_best_ant["intensity_sum"] > best_ant["intensity_sum"]
+            current_best_ant = max(ants, key=lambda ant: len(ant["path"]))
+            if best_ant is None or len(current_best_ant["path"]) > len(
+                best_ant["path"]
             ):
                 best_ant = copy.deepcopy(current_best_ant)
 
-            print(iter, "len best path", len(current_best_ant["path"]))
-
+            # Fill color to the traversed path
             for position in current_best_ant["path"]:
-                segmentation_result[position] = self.image[position]
+                segmentation_result[position] = (
+                    255,
+                    255,
+                    255,
+                )  # White for traversed path
+
+        # Fill color to the non-traversed area using the original image
+        non_traversed_indices = np.where(segmentation_result == (0, 0, 0))
+        segmentation_result[non_traversed_indices] = self.image[non_traversed_indices]
 
         return segmentation_result
 
@@ -183,8 +156,8 @@ image = cv2.imread("Guava Dataset/Red_rust/Red Rust(87).jpg")
 
 print(image.shape)
 
-num_ants = 10
-max_iterations = 10
+num_ants = 100
+max_iterations = 200
 
 alpha = 0.9
 beta = 0.9
