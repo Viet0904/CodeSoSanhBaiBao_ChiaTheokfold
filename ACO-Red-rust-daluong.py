@@ -165,7 +165,7 @@ class AntColonySegmentation:
 
 
 num_ants = 100
-max_iterations = 200
+max_iterations = 100
 alpha = 0.9
 beta = 0.9
 rho = 0.1
