@@ -3,13 +3,6 @@ import random
 import copy
 import cv2
 import os
-from numba import jit, types
-
-
-class Ant:
-    def __init__(self):
-        self.path = []
-        self.intensity_sum = 0.0
 
 
 class AntColonySegmentation:
@@ -24,54 +17,48 @@ class AntColonySegmentation:
 
         self.pheromones = np.ones([self.image.shape[0], self.image.shape[1]])
 
-    @staticmethod
-    def initialize_ants(num_ants, colony):
+    def initialize_ants(self):
         ants = []
-        for _ in range(num_ants):
-            ant = Ant()
-            ant.colony = colony
+        for _ in range(self.num_ants):
+            ant = {"path": [], "intensity_sum": 0.0}
             ants.append(ant)
         return ants
 
-    @staticmethod
-    def clear_ant_paths(ants):
+    def clear_ant_paths(self, ants):
         for ant in ants:
-            ant.path = []
-            ant.intensity_sum = 0.0
+            ant["path"] = []
+            ant["intensity_sum"] = 0.0
 
-    @staticmethod
-    def construct_segment(image, ants):
-        for ant in ants:
-            current_position = (
-                np.random.randint(0, image.shape[0]),
-                np.random.randint(0, image.shape[1]),
+    def construct_segment(self, ant):
+        current_position = (
+            np.random.randint(0, self.image.shape[0]),
+            np.random.randint(0, self.image.shape[1]),
+        )
+        ant["path"].append(current_position)
+
+        while True:
+            neighbors = self.get_neighbors(current_position)
+            probabilities = self.calculate_probabilities(
+                current_position, neighbors, ant
             )
-            ant.path.append(current_position)
 
-            while True:
-                neighbors = AntColonySegmentation.get_neighbors(image, current_position)
-                probabilities = AntColonySegmentation.calculate_probabilities(
-                    image, current_position, neighbors, ant
-                )
+            # Choose the next position based on probabilities
+            next_position = np.random.choice(range(len(neighbors)), p=probabilities)
+            next_position = neighbors[next_position]
 
-                # Choose the next position based on probabilities
-                next_position = np.random.choice(range(len(neighbors)), p=probabilities)
-                next_position = neighbors[next_position]
+            if (
+                self.image[next_position][2] <= self.image[next_position][1]
+                or self.image[next_position][2] <= self.image[next_position][0]
+            ):
+                # If the pixel is not red, move to the next position
+                ant["path"].append(next_position)
+                current_position = next_position
+            else:
+                # If the pixel is red, stop moving
+                break
 
-                if (
-                    image[next_position][2] <= image[next_position][1]
-                    or image[next_position][2] <= image[next_position][0]
-                ):
-                    # If the pixel is not red, move to the next position
-                    ant.path.append(next_position)
-                    current_position = next_position
-                else:
-                    # If the pixel is red, stop moving
-                    break
-
-    @staticmethod
-    def get_neighbors(image, position):
-        height, width, _ = image.shape
+    def get_neighbors(self, position):
+        height, width, _ = self.image.shape
         row, col = position
         neighbors = []
         neighbors_offsets = [
@@ -87,24 +74,24 @@ class AntColonySegmentation:
 
         for offset_row, offset_col in neighbors_offsets:
             new_row, new_col = row + offset_row, col + offset_col
-            if 0 <= new_row < image.shape[0] and 0 <= new_col < image.shape[1]:
+            if (
+                0 <= new_row < self.image.shape[0]
+                and 0 <= new_col < self.image.shape[1]
+            ):
                 neighbors.append((new_row, new_col))
 
         return neighbors
 
-    @staticmethod
-    def calculate_probabilities(image, current_position, neighbors, ant):
-        intensity = image[current_position][1]
+    def calculate_probabilities(self, current_position, neighbors, ant):
+        intensity = self.image[current_position][1]
         probabilities = []
 
         total_probability = 0  # Initialize total probability
         for neighbor in neighbors:
-            attractiveness = AntColonySegmentation.calc_attractiveness(image, neighbor)
-            pheromone = ant.intensity_sum
-            probability = (pheromone**ant.colony.alpha) * (
-                attractiveness**ant.colony.beta
-            )
-            if neighbor in ant.path:
+            attractiveness = self.calc_attractiveness(neighbor)
+            pheromone = self.pheromones[neighbor]
+            probability = (pheromone**self.alpha) * (attractiveness**self.beta)
+            if neighbor in ant["path"]:
                 probability = 0
             probabilities.append(probability)
             total_probability += probability  # Sum up probabilities
@@ -118,10 +105,9 @@ class AntColonySegmentation:
 
         return probabilities
 
-    @staticmethod
-    def calc_attractiveness(image, position):
+    def calc_attractiveness(self, position):
         row, col = position
-        pixel = image[row, col]
+        pixel = self.image[row, col]
         if (
             pixel[2] > pixel[1] and pixel[2] > pixel[0]
         ):  # Thay pixel[1] bằng pixel[2] để kiểm tra màu đỏ
@@ -129,28 +115,30 @@ class AntColonySegmentation:
         else:
             return 0.1
 
-    @staticmethod
-    def update_pheromones(ants, pheromones):
-        pheromones *= 1 - AntColonySegmentation.rho  # Evaporation
+    def update_pheromones(self, ants):
+        self.pheromones *= 1 - self.rho  # Evaporation
         for ant in ants:
-            for position in ant.path:
-                pheromones[position] += ant.intensity_sum
+            for position in ant["path"]:
+                self.pheromones[position] += ant["intensity_sum"]
 
     def run(self):
-        ants = AntColonySegmentation.initialize_ants(self.num_ants, self)
+        ants = self.initialize_ants()
         best_ant = None
         segmentation_result = np.zeros_like(self.image)
 
         for iteration in range(self.max_iterations):
-            AntColonySegmentation.clear_ant_paths(ants)
-            AntColonySegmentation.construct_segment(self.image, ants)
+            self.clear_ant_paths(ants)
+            for ant in ants:
+                self.construct_segment(ant)
 
-            current_best_ant = max(ants, key=lambda ant: len(ant.path))
-            if best_ant is None or len(current_best_ant.path) > len(best_ant.path):
+            current_best_ant = max(ants, key=lambda ant: len(ant["path"]))
+            if best_ant is None or len(current_best_ant["path"]) > len(
+                best_ant["path"]
+            ):
                 best_ant = copy.deepcopy(current_best_ant)
 
             # Fill color to the traversed path
-            for position in current_best_ant.path:
+            for position in current_best_ant["path"]:
                 segmentation_result[position] = (
                     255,
                     255,
@@ -164,40 +152,40 @@ class AntColonySegmentation:
         return segmentation_result
 
 
+# Đọc ảnh vào
+image = cv2.imread("Guava Dataset/Red_rust/Red Rust(87).jpg")
+print(image.shape)
 num_ants = 100
 max_iterations = 200
 alpha = 0.9
 beta = 0.9
 rho = 0.1
-
-# Khai báo đường dẫn thư mục chứa ảnh gốc và thư mục chứa ảnh sau khi ACO
+# Thư mục chứa ảnh đầu vào
 input_folder = "Guava Dataset/Red_rust"
-output_folder = "Processed Images"
 
-# Đảm bảo thư mục đầu ra tồn tại
+# Thư mục để lưu ảnh đã xử lý
+output_folder = "Red_rust"
 os.makedirs(output_folder, exist_ok=True)
 
-# Duyệt qua các tệp trong thư mục đầu vào
-for filename in os.listdir(input_folder):
-    # Kiểm tra xem tệp
-    if (
-        filename.endswith(".jpg")
-        or filename.endswith(".jpeg")
-        or filename.endswith(".png")
-    ):
-        # Đoạn code xử lý ảnh
-        image_path = os.path.join(input_folder, filename)
 
-        # Đọc ảnh từ thư mục đầu vào
+# Lặp qua tất cả các tệp trong thư mục đầu vào
+for filename in os.listdir(input_folder):
+    if filename.endswith(".jpg") or filename.endswith(
+        ".png"
+    ):  # Chỉ xử lý các tệp hình ảnh
+        # Đọc hình ảnh
         image_path = os.path.join(input_folder, filename)
         image = cv2.imread(image_path)
-
-        # ACO cho ảnh
+        # Khởi tạo và chạy thuật toán phân đoạn ACO
         aco_segmentation = AntColonySegmentation(
             image, num_ants, max_iterations, alpha, beta, rho
         )
         result = aco_segmentation.run()
 
-        # Lưu ảnh đã xử lý vào thư mục đầu ra với cùng tên ảnh
-        output_path = os.path.join(output_folder, filename)
-        save = cv2.imwrite(output_path, result)
+        # Tạo tên file đầu ra dựa trên tên file gốc
+        output_filename = os.path.join(output_folder, filename)
+
+        # Lưu kết quả phân đoạn vào thư mục đầu ra
+        cv2.imwrite(output_filename, result)
+
+        print("Đã xử lý và lưu ảnh", filename, "vào:", output_filename)
