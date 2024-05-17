@@ -156,7 +156,7 @@ class AntColonySegmentation:
 image = cv2.imread("Guava Dataset/Red_rust/Red Rust(87).jpg")
 print(image.shape)
 num_ants = 100
-max_iterations = 200
+max_iterations = 150
 alpha = 0.9
 beta = 0.9
 rho = 0.1
