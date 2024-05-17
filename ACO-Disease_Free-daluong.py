@@ -29,13 +29,6 @@ class AntColonySegmentation:
             ant["path"] = []
             ant["intensity_sum"] = 0.0
 
-    # def dead_end(self,neighbors):
-    #     #neighbors = self.get_neighbors(pos)
-    #     for n in neighbors:
-    #         if self.image[n][1] > self.image[n][2] and self.image[n][1] > self.image[n][0]:
-    #             return False
-    #     return True
-
     def construct_segment(self, ant):
         current_position = (
             np.random.randint(0, self.image.shape[0]),
@@ -43,62 +36,32 @@ class AntColonySegmentation:
         )
         ant["path"].append(current_position)
 
-        briter = 0
-        b = 0
-        self.green_found = True
-        while self.green_found:  # and briter<5000:
-            briter += 1
+        while True:
             neighbors = self.get_neighbors(current_position)
             probabilities = self.calculate_probabilities(
                 current_position, neighbors, ant
             )
 
-            i = 2  # backtracking
-            length = len(ant["path"])
-            while sum(probabilities) == 0 and i <= length:
-                current_position = ant["path"][-i]
-                neighbors = self.get_neighbors(current_position)
-                probabilities = self.calculate_probabilities(
-                    current_position, neighbors, ant
-                )
-                i += 1
-
-            if i == length and length > 2:
-                self.green_found = False
-                print("i==length")
-                break
-
-            if sum(probabilities) == 0:
-                self.green_found = False
-                break
-
-            pom = [_ for _ in range(len(neighbors))]
-            next_position = np.random.choice(pom, p=probabilities)
+            # Choose the next position based on probabilities
+            next_position = np.random.choice(range(len(neighbors)), p=probabilities)
             next_position = neighbors[next_position]
 
             if (
-                self.image[next_position][1] < self.image[next_position][2]
-                or self.image[next_position][1] < self.image[next_position][0]
+                self.image[next_position][1] <= self.image[next_position][2]
+                or self.image[next_position][1] <= self.image[next_position][0]
             ):
-                b += 1
-            else:
-                b = 0
 
-            if b == 50:
-                self.green_found = False
-                # print('green not found')
-                break
-
-            if next_position not in ant["path"]:
+                # If the pixel is not green, move to the next position
                 ant["path"].append(next_position)
                 current_position = next_position
-        # print(briter)
+            else:
+                # If the pixel is green, stop moving
+                break
 
     def get_neighbors(self, position):
         height, width, _ = self.image.shape
         row, col = position
         neighbors = []
-        # neighbors_offsets = [(0, 1), (0, -1),(1,0),(-1,0)]
         neighbors_offsets = [
             (0, 1),
             (0, -1),
@@ -124,34 +87,32 @@ class AntColonySegmentation:
         intensity = self.image[current_position][1]
         probabilities = []
 
-        # if self.dead_end(neighbors):
-        #     probabilities = [0 for _ in range(len(neighbors))]
-        #     return probabilit
-
+        total_probability = 0  # Initialize total probability
         for neighbor in neighbors:
             attractiveness = self.calc_attractiveness(neighbor)
-            # neighbor_intensity = self.image[neighbor][1]
             pheromone = self.pheromones[neighbor]
             probability = (pheromone**self.alpha) * (attractiveness**self.beta)
-            # if probability == float('inf'):
-            # probability = 10000.0
             if neighbor in ant["path"]:
                 probability = 0
-                # print([n in self.visited for n in neighbors])
             probabilities.append(probability)
+            total_probability += probability  # Sum up probabilities
 
-        total_probability = sum(probabilities)
-        # probabilities = [p / total_probability for p in probabilities]
-        if total_probability > 0:
-            probabilities /= total_probability
+        if total_probability == 0:
+            # If all probabilities are 0, assign equal probabilities to all neighbors
+            probabilities = [1 / len(neighbors)] * len(neighbors)
+        else:
+            # Normalize probabilities if total probability is greater than 0
+            probabilities = [prob / total_probability for prob in probabilities]
 
         return probabilities
 
     def calc_attractiveness(self, position):
         row, col = position
         pixel = self.image[row, col]
-        if pixel[1] > pixel[2] and pixel[1] > pixel[2]:
-            return 0.9  # High attractiveness for green pixels
+        if (
+            pixel[1] > pixel[0] and pixel[1] > pixel[2]
+        ):  # Kiểm tra nếu pixel có màu xanh lá cây
+            return 0.9  # Độ hấp dẫn cao đối với pixel màu xanh lá cây
         else:
             return 0.1
 
@@ -159,48 +120,44 @@ class AntColonySegmentation:
         self.pheromones *= 1 - self.rho  # Evaporation
         for ant in ants:
             for position in ant["path"]:
-                self.pheromones[position] += ant["intensity_sum"]  # sklonio 1.0/
+                self.pheromones[position] += ant["intensity_sum"]
 
     def run(self):
         ants = self.initialize_ants()
         best_ant = None
         segmentation_result = np.zeros_like(self.image)
-        iter = 0
 
         for iteration in range(self.max_iterations):
-            iter += 1
             self.clear_ant_paths(ants)
-            # print('suma feromona',np.sum(self.pheromones))
             for ant in ants:
                 self.construct_segment(ant)
-                # ant['intensity_sum'] = sum(self.image[position][1] for position in ant['path'])
-                ant["intensity_sum"] = sum(
-                    (
-                        self.image[position][1] > self.image[position][0]
-                        and self.image[position][1] > self.image[position][2]
-                    )
-                    for position in ant["path"]
-                )
 
-            self.update_pheromones(ants)
-
-            # Choose the best segment (ant) based on intensity sum
-            current_best_ant = max(ants, key=lambda ant: ant["intensity_sum"])
-            if (
-                best_ant is None
-                or current_best_ant["intensity_sum"] > best_ant["intensity_sum"]
+            current_best_ant = max(ants, key=lambda ant: len(ant["path"]))
+            if best_ant is None or len(current_best_ant["path"]) > len(
+                best_ant["path"]
             ):
                 best_ant = copy.deepcopy(current_best_ant)
 
-            print(iter, "len best path", len(current_best_ant["path"]))
-
-            # segmentation_result = np.zeros_like(self.image)
+            # Fill color to the traversed path
             for position in current_best_ant["path"]:
-                segmentation_result[position] = self.image[position]
+                segmentation_result[position] = (
+                    255,
+                    255,
+                    255,
+                )  # Màu xanh lá cây cho đường đi
+
+        # Fill color to the non-traversed area using the original image
+        non_traversed_indices = np.where(segmentation_result == (0, 0, 0))
+        segmentation_result[non_traversed_indices] = self.image[non_traversed_indices]
 
         return segmentation_result
 
 
+num_ants = 100
+max_iterations = 150
+alpha = 0.9
+beta = 0.9
+rho = 0.1
 # Thư mục chứa ảnh đầu vào
 input_folder = "Guava Dataset/Disease_Free"
 
@@ -208,12 +165,6 @@ input_folder = "Guava Dataset/Disease_Free"
 output_folder = "Disease_Free"
 os.makedirs(output_folder, exist_ok=True)
 
-# Định nghĩa các tham số cho thuật toán ACO
-num_ants = 5
-max_iterations = 1
-alpha = 1.0
-beta = 2.0
-rho = 0.5
 
 # Lặp qua tất cả các tệp trong thư mục đầu vào
 for filename in os.listdir(input_folder):
@@ -223,13 +174,9 @@ for filename in os.listdir(input_folder):
         # Đọc hình ảnh
         image_path = os.path.join(input_folder, filename)
         image = cv2.imread(image_path)
-
-        # Áp dụng median filter
-        median_filtered_image = cv2.medianBlur(image, 5)
-
         # Khởi tạo và chạy thuật toán phân đoạn ACO
         aco_segmentation = AntColonySegmentation(
-            median_filtered_image, num_ants, max_iterations, alpha, beta, rho
+            image, num_ants, max_iterations, alpha, beta, rho
         )
         result = aco_segmentation.run()
 

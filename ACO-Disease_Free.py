@@ -2,7 +2,6 @@ import numpy as np
 import random
 import copy
 import cv2
-import os
 
 
 class AntColonySegmentation:
@@ -47,14 +46,15 @@ class AntColonySegmentation:
             next_position = neighbors[next_position]
 
             if (
-                self.image[next_position][2] <= self.image[next_position][1]
-                or self.image[next_position][2] <= self.image[next_position][0]
+                self.image[next_position][1] <= self.image[next_position][2]
+                or self.image[next_position][1] <= self.image[next_position][0]
             ):
-                # If the pixel is not red, move to the next position
+
+                # If the pixel is not green, move to the next position
                 ant["path"].append(next_position)
                 current_position = next_position
             else:
-                # If the pixel is red, stop moving
+                # If the pixel is green, stop moving
                 break
 
     def get_neighbors(self, position):
@@ -109,9 +109,9 @@ class AntColonySegmentation:
         row, col = position
         pixel = self.image[row, col]
         if (
-            pixel[2] > pixel[1] and pixel[2] > pixel[0]
-        ):  # Thay pixel[1] bằng pixel[2] để kiểm tra màu đỏ
-            return 0.9  # Độ hấp dẫn cao đối với pixel màu đỏ
+            pixel[1] > pixel[0] and pixel[1] > pixel[2]
+        ):  # Kiểm tra nếu pixel có màu xanh lá cây
+            return 0.9  # Độ hấp dẫn cao đối với pixel màu xanh lá cây
         else:
             return 0.1
 
@@ -143,7 +143,7 @@ class AntColonySegmentation:
                     255,
                     255,
                     255,
-                )  # White for traversed path
+                )  # Màu xanh lá cây cho đường đi
 
         # Fill color to the non-traversed area using the original image
         non_traversed_indices = np.where(segmentation_result == (0, 0, 0))
@@ -152,38 +152,22 @@ class AntColonySegmentation:
         return segmentation_result
 
 
+# Đọc ảnh vào
+image = cv2.imread("Guava Dataset/Disease_Free/Disease Free (2).jpg")
+
+print(image.shape)
 
 num_ants = 100
-max_iterations = 150
+max_iterations = 200
+
 alpha = 0.9
 beta = 0.9
 rho = 0.1
-# Thư mục chứa ảnh đầu vào
-input_folder = "Guava Dataset/Red_rust"
 
-# Thư mục để lưu ảnh đã xử lý
-output_folder = "Red_rust"
-os.makedirs(output_folder, exist_ok=True)
+aco_segmentation = AntColonySegmentation(
+    image, num_ants, max_iterations, alpha, beta, rho
+)
 
-
-# Lặp qua tất cả các tệp trong thư mục đầu vào
-for filename in os.listdir(input_folder):
-    if filename.endswith(".jpg") or filename.endswith(
-        ".png"
-    ):  # Chỉ xử lý các tệp hình ảnh
-        # Đọc hình ảnh
-        image_path = os.path.join(input_folder, filename)
-        image = cv2.imread(image_path)
-        # Khởi tạo và chạy thuật toán phân đoạn ACO
-        aco_segmentation = AntColonySegmentation(
-            image, num_ants, max_iterations, alpha, beta, rho
-        )
-        result = aco_segmentation.run()
-
-        # Tạo tên file đầu ra dựa trên tên file gốc
-        output_filename = os.path.join(output_folder, filename)
-
-        # Lưu kết quả phân đoạn vào thư mục đầu ra
-        cv2.imwrite(output_filename, result)
-
-        print("Đã xử lý và lưu ảnh", filename, "vào:", output_filename)
+result = aco_segmentation.run()
+output_path = "Disease Free (2).jpg"
+save = cv2.imwrite(output_path, result)
