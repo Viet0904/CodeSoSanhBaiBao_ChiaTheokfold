@@ -2,9 +2,7 @@ import numpy as np
 import random
 import copy
 import cv2
-import os
-from concurrent.futures import ThreadPoolExecutor
-
+import os 
 
 class AntColonySegmentation:
     def __init__(self, image, num_ants, max_iterations, alpha, beta, rho):
@@ -39,24 +37,27 @@ class AntColonySegmentation:
 
         while True:
             neighbors = self.get_neighbors(current_position)
-            probabilities = self.calculate_probabilities(
-                current_position, neighbors, ant
-            )
+            probabilities = self.calculate_probabilities(current_position, neighbors, ant)
 
-            # Choose the next position based on probabilities
+            # Chọn vị trí tiếp theo dựa trên xác suất
             next_position = np.random.choice(range(len(neighbors)), p=probabilities)
             next_position = neighbors[next_position]
 
-            if (
-                self.image[next_position][2] <= self.image[next_position][1]
-                or self.image[next_position][2] <= self.image[next_position][0]
-            ):
-                # If the pixel is not red, move to the next position
+            # Lấy giá trị màu của pixel tại vị trí tiếp theo
+            pixel = self.image[next_position]
+            red, green, blue = pixel[2], pixel[1], pixel[0]
+
+            # Kiểm tra màu cam và đen
+            is_orange = red > 200 and green > 100 and blue < 100
+            is_black = red < 50 and green < 50 and blue < 50
+
+            if is_orange or is_black:
+                # Nếu pixel là màu cam hoặc đen, dừng lại
+                break
+            else:
+                # Nếu không, tiếp tục di chuyển tới vị trí tiếp theo
                 ant["path"].append(next_position)
                 current_position = next_position
-            else:
-                # If the pixel is red, stop moving
-                break
 
     def get_neighbors(self, position):
         height, width, _ = self.image.shape
@@ -109,9 +110,7 @@ class AntColonySegmentation:
     def calc_attractiveness(self, position):
         row, col = position
         pixel = self.image[row, col]
-        if (
-            pixel[2] > pixel[1] and pixel[2] > pixel[0]
-        ):  # Thay pixel[1] bằng pixel[2] để kiểm tra màu đỏ
+        if pixel[2] > pixel[1] and pixel[2] > pixel[0]:  # Thay pixel[1] bằng pixel[2] để kiểm tra màu đỏ
             return 0.9  # Độ hấp dẫn cao đối với pixel màu đỏ
         else:
             return 0.1
@@ -138,65 +137,38 @@ class AntColonySegmentation:
             ):
                 best_ant = copy.deepcopy(current_best_ant)
 
-            # Fill color to the traversed path
+            # Tô màu cho đường đi đã qua
             for position in current_best_ant["path"]:
                 segmentation_result[position] = (
                     255,
                     255,
                     255,
-                )  # White for traversed path
+                )  # Màu trắng cho đường đi đã qua
 
-        # Fill color to the non-traversed area using the original image
+        # Tô màu cho vùng không được đi qua bằng ảnh gốc
         non_traversed_indices = np.where(segmentation_result == (0, 0, 0))
         segmentation_result[non_traversed_indices] = self.image[non_traversed_indices]
 
         return segmentation_result
 
 
-def process_image(
-    image_path, num_ants, max_iterations, alpha, beta, rho, output_folder
-):
-    image = cv2.imread(image_path)
-    aco_segmentation = AntColonySegmentation(
-        image, num_ants, max_iterations, alpha, beta, rho
-    )
-    result = aco_segmentation.run()
 
-    output_filename = os.path.join(output_folder, os.path.basename(image_path))
-    cv2.imwrite(output_filename, result)
-    print(f"Đã xử lý và lưu ảnh {os.path.basename(image_path)} vào: {output_filename}")
+# Đọc ảnh vào
+image = cv2.imread("Guava Dataset/Phytopthora/Phytopthora (1).jpg")
 
+print(image.shape)
 
 num_ants = 100
-max_iterations = 100
+max_iterations = 200
+
 alpha = 0.9
 beta = 0.9
 rho = 0.1
-input_folder = "Guava Dataset/Red_rust"
-output_folder = "Red_rust"
-os.makedirs(output_folder, exist_ok=True)
 
-image_paths = [
-    os.path.join(input_folder, filename)
-    for filename in os.listdir(input_folder)
-    if filename.endswith(".jpg") or filename.endswith(".png")
-]
+aco_segmentation = AntColonySegmentation(
+    image, num_ants, max_iterations, alpha, beta, rho
+)
 
-# Sử dụng ThreadPoolExecutor để xử lý các ảnh song song
-with ThreadPoolExecutor(max_workers=4) as executor:
-    futures = [
-        executor.submit(
-            process_image,
-            image_path,
-            num_ants,
-            max_iterations,
-            alpha,
-            beta,
-            rho,
-            output_folder,
-        )
-        for image_path in image_paths
-    ]
-
-    for future in futures:
-        future.result()  # Đợi cho tất cả các tác vụ hoàn thành
+result = aco_segmentation.run()
+output_path = "Phytopthora (1).jpg"
+save = cv2.imwrite(output_path, result)
